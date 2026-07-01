@@ -2,6 +2,7 @@ using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
 using AutVent.CorePlatform.Infrastructure.Persistence;
+using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
@@ -111,6 +112,102 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .ToArray();
 
         return ApiResponse<IReadOnlyCollection<ProductResponse>>.Created(response, "Products created successfully");
+    }
+
+    public async Task<ApiResponse<ProductImportResponse>> ImportAsync(IFormFile file, CancellationToken cancellationToken = default)
+    {
+        if (file.Length == 0)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "File is empty",
+                [new ApiError("EmptyFile", "Upload a non-empty excel file")]);
+        }
+
+        var extension = Path.GetExtension(file.FileName);
+        if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid file format",
+                [new ApiError("InvalidFileFormat", "Only .xlsx files are supported")]);
+        }
+
+        using var stream = file.OpenReadStream();
+        using var workbook = new XLWorkbook(stream);
+
+        var worksheet = workbook.Worksheets.FirstOrDefault();
+        if (worksheet is null)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Workbook is empty",
+                [new ApiError("EmptyWorkbook", "No worksheet found in the uploaded file")]);
+        }
+
+        var requests = new List<CreateProductRequest>();
+        var errors = new List<ApiError>();
+        var rowNumber = 2;
+
+        while (!worksheet.Row(rowNumber).IsEmpty())
+        {
+            var name = worksheet.Cell(rowNumber, 1).GetString().Trim();
+            var price = worksheet.Cell(rowNumber, 2).GetString().Trim();
+            var quantityRaw = worksheet.Cell(rowNumber, 3).GetString().Trim();
+            var category = worksheet.Cell(rowNumber, 4).GetString().Trim();
+
+            if (string.IsNullOrWhiteSpace(name) ||
+                string.IsNullOrWhiteSpace(price) ||
+                string.IsNullOrWhiteSpace(quantityRaw) ||
+                string.IsNullOrWhiteSpace(category))
+            {
+                errors.Add(new ApiError("InvalidRow", $"Row {rowNumber} has missing required values"));
+                rowNumber++;
+                continue;
+            }
+
+            if (!long.TryParse(quantityRaw, out var quantity))
+            {
+                errors.Add(new ApiError("InvalidQuantity", $"Row {rowNumber} has invalid quantity value"));
+                rowNumber++;
+                continue;
+            }
+
+            requests.Add(new CreateProductRequest
+            {
+                Name = name,
+                Price = price,
+                Quantity = quantity,
+                ProductCategory = category
+            });
+
+            rowNumber++;
+        }
+
+        if (errors.Count > 0)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid excel content",
+                errors);
+        }
+
+        var createResponse = await CreateAsync(requests, cancellationToken);
+        if (!createResponse.Success)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                createResponse.StatusCode,
+                createResponse.Message,
+                createResponse.Errors);
+        }
+
+        var response = new ProductImportResponse
+        {
+            ImportedCount = createResponse.Data?.Count ?? 0,
+            ImportedProducts = createResponse.Data ?? []
+        };
+
+        return ApiResponse<ProductImportResponse>.Created(response, "Products imported successfully");
     }
 
     public async Task<ApiResponse<ProductResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default)

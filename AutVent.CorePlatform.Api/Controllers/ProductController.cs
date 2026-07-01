@@ -19,6 +19,16 @@ public class ProductController(IProductService productService) : ControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpPost("import")]
+    [ProducesResponseType(typeof(ApiResponse<ProductImportResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<ProductImportResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ProductImportResponse>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Import(IFormFile file, CancellationToken cancellationToken)
+    {
+        var response = await productService.ImportAsync(file, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
