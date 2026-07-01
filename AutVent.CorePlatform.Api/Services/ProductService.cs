@@ -130,10 +130,53 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<ProductResponse>.Ok(MapToResponse(product, product.ProductCategory.Name));
     }
 
-    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<ProductResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
     {
-        var items = await unitOfWork.Query<Product>()
+        var pageNumber = Math.Max(1, request.PageNumber);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var query = unitOfWork.Query<Product>()
             .Include(x => x.ProductCategory)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(x =>
+                x.Name.ToLower().Contains(search) ||
+                x.ProductCategory.Name.ToLower().Contains(search));
+        }
+
+        if (request.Filters is not null)
+        {
+            if (request.Filters.TryGetValue("productCategory", out var categoryFilter) && !string.IsNullOrWhiteSpace(categoryFilter))
+            {
+                var category = categoryFilter.Trim().ToLower();
+                query = query.Where(x => x.ProductCategory.Name.ToLower() == category);
+            }
+
+            if (request.Filters.TryGetValue("minQuantity", out var minQtyFilter) && long.TryParse(minQtyFilter, out var minQty))
+            {
+                query = query.Where(x => x.Quantity >= minQty);
+            }
+
+            if (request.Filters.TryGetValue("maxQuantity", out var maxQtyFilter) && long.TryParse(maxQtyFilter, out var maxQty))
+            {
+                query = query.Where(x => x.Quantity <= maxQty);
+            }
+
+            if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
+            {
+                query = query.Where(x => x.IsActive == isActive);
+            }
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderBy(x => x.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(x => new ProductResponse
             {
                 ProductId = x.Id,
@@ -144,7 +187,16 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             })
             .ToListAsync(cancellationToken);
 
-        return ApiResponse<IReadOnlyCollection<ProductResponse>>.Ok(items);
+        var paged = new PagedResponse<ProductResponse>
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Items = items
+        };
+
+        return ApiResponse<PagedResponse<ProductResponse>>.Ok(paged);
     }
 
     private static ProductResponse MapToResponse(Product product, string categoryName) => new()

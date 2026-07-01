@@ -102,10 +102,50 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         return ApiResponse<CreateStoreResponse>.Ok(MapToResponse(store, store.StoreCategory.Name));
     }
 
-    public async Task<ApiResponse<IReadOnlyCollection<CreateStoreResponse>>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<CreateStoreResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
     {
-        var items = await unitOfWork.Query<Store>()
+        var pageNumber = Math.Max(1, request.PageNumber);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var query = unitOfWork.Query<Store>()
             .Include(x => x.StoreCategory)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(x =>
+                x.Name.ToLower().Contains(search) ||
+                x.EmailAddress.ToLower().Contains(search) ||
+                x.PhoneNumber.ToLower().Contains(search) ||
+                x.StoreCategory.Name.ToLower().Contains(search));
+        }
+
+        if (request.Filters is not null)
+        {
+            if (request.Filters.TryGetValue("businessId", out var businessIdFilter) && long.TryParse(businessIdFilter, out var businessId))
+            {
+                query = query.Where(x => x.BusinessId == businessId);
+            }
+
+            if (request.Filters.TryGetValue("storeCategory", out var categoryFilter) && !string.IsNullOrWhiteSpace(categoryFilter))
+            {
+                var category = categoryFilter.Trim().ToLower();
+                query = query.Where(x => x.StoreCategory.Name.ToLower() == category);
+            }
+
+            if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
+            {
+                query = query.Where(x => x.IsActive == isActive);
+            }
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderBy(x => x.Name)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(x => new CreateStoreResponse
             {
                 StoreId = x.Id,
@@ -117,7 +157,16 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
             })
             .ToListAsync(cancellationToken);
 
-        return ApiResponse<IReadOnlyCollection<CreateStoreResponse>>.Ok(items);
+        var paged = new PagedResponse<CreateStoreResponse>
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Items = items
+        };
+
+        return ApiResponse<PagedResponse<CreateStoreResponse>>.Ok(paged);
     }
 
     private static CreateStoreResponse MapToResponse(Store store, string storeCategory) => new()

@@ -98,10 +98,54 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
     }
 
-    public async Task<ApiResponse<IReadOnlyCollection<CreateBusinessResponse>>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
     {
-        var items = await unitOfWork.Query<Business>()
+        var pageNumber = Math.Max(1, request.PageNumber);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var query = unitOfWork.Query<Business>()
             .Include(x => x.BusinessIndustry)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(x =>
+                x.BusinessName.ToLower().Contains(search) ||
+                x.StaffRange.ToLower().Contains(search) ||
+                x.BusinessIndustry.Name.ToLower().Contains(search));
+        }
+
+        if (request.Filters is not null)
+        {
+            if (request.Filters.TryGetValue("userId", out var userIdFilter) && long.TryParse(userIdFilter, out var userId))
+            {
+                query = query.Where(x => x.UserId == userId);
+            }
+
+            if (request.Filters.TryGetValue("industry", out var industry) && !string.IsNullOrWhiteSpace(industry))
+            {
+                var industryFilter = industry.Trim().ToLower();
+                query = query.Where(x => x.BusinessIndustry.Name.ToLower() == industryFilter);
+            }
+
+            if (request.Filters.TryGetValue("staffRange", out var staffRange) && !string.IsNullOrWhiteSpace(staffRange))
+            {
+                var staffRangeFilter = staffRange.Trim().ToLower();
+                query = query.Where(x => x.StaffRange.ToLower() == staffRangeFilter);
+            }
+
+            if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
+            {
+                query = query.Where(x => x.IsActive == isActive);
+            }
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(x => x.BusinessName)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(x => new CreateBusinessResponse
             {
                 BusinessId = x.Id,
@@ -111,7 +155,16 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
             })
             .ToListAsync(cancellationToken);
 
-        return ApiResponse<IReadOnlyCollection<CreateBusinessResponse>>.Ok(items);
+        var paged = new PagedResponse<CreateBusinessResponse>
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            Items = items
+        };
+
+        return ApiResponse<PagedResponse<CreateBusinessResponse>>.Ok(paged);
     }
 
     private static CreateBusinessResponse MapToResponse(Business business, string industry) => new()

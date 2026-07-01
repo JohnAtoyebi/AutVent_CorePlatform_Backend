@@ -29,10 +29,10 @@ public class ProductController(IProductService productService) : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<ProductResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
     {
-        var response = await productService.GetAllAsync(cancellationToken);
+        var response = await productService.GetAllAsync(request, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 }

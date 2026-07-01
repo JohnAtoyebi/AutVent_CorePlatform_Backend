@@ -7,5 +7,5 @@ public interface IBusinessService
 {
     Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CreateBusinessResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default);
-    Task<ApiResponse<IReadOnlyCollection<CreateBusinessResponse>>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default);
 }

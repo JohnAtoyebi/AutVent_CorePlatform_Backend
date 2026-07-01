@@ -29,10 +29,10 @@ public class BusinessController(IBusinessService businessService) : ControllerBa
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<CreateBusinessResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<CreateBusinessResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
     {
-        var response = await businessService.GetAllAsync(cancellationToken);
+        var response = await businessService.GetAllAsync(request, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 }
