@@ -1,0 +1,6 @@
+@AutVent.CorePlatform.Api_HostAddress = http://localhost:5130
+
+GET {{AutVent.CorePlatform.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

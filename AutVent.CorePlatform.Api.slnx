@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AutVent.CorePlatform.Api/AutVent.CorePlatform.Api.csproj" />
+  <Project Path="AutVent.CorePlatform.Application/AutVent.CorePlatform.Application.csproj" />
+  <Project Path="AutVent.CorePlatform.Domain/AutVent.CorePlatform.Domain.csproj" />
+  <Project Path="AutVent.CorePlatform.Infrastructure/AutVent.CorePlatform.Infrastructure.csproj" />
+</Solution>
