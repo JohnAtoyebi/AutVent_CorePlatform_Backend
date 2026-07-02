@@ -17,7 +17,7 @@ var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddApiServices();
+builder.Services.AddApiServices(builder.Configuration);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {

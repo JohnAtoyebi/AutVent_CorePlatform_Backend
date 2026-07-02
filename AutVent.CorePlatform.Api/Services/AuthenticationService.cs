@@ -1,17 +1,24 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using AutVent.CorePlatform.Api.Common.Email;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Common.Security;
+using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class AuthenticationService(IUnitOfWork unitOfWork, IConfiguration configuration) : IAuthenticationService
+public sealed class AuthenticationService(
+    IUnitOfWork unitOfWork,
+    IConfiguration configuration,
+    IEmailProvider emailProvider,
+    IOptions<EmailOptions> emailOptions) : IAuthenticationService
 {
     private const string SystemActor = "system";
 
@@ -90,6 +97,10 @@ public sealed class AuthenticationService(IUnitOfWork unitOfWork, IConfiguration
         unitOfWork.Update(user);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await emailProvider.SendAsync(
+            EmailTemplates.PasswordReset(normalizedEmail, user.FullName, emailOptions),
+            cancellationToken);
+
         var response = new ResetPasswordResponse
         {
             EmailAddress = user.EmailAddress,
@@ -128,6 +139,6 @@ public sealed class AuthenticationService(IUnitOfWork unitOfWork, IConfiguration
             signingCredentials: credentials);
 
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        return $"Bearer {tokenString}";
+        return tokenString;
     }
 }

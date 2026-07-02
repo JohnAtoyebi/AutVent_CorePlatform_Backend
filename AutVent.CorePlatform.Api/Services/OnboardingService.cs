@@ -1,13 +1,16 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Common.Security;
+using AutVent.CorePlatform.Api.Common.Email;
+using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class OnboardingService(IUnitOfWork unitOfWork) : IOnboardingService
+public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions) : IOnboardingService
 {
     private const string SystemActor = "system";
 
@@ -57,6 +60,10 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork) : IOnboardingServi
         var otp = await CreateAndTrackOtpAsync(normalizedEmail, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await emailProvider.SendAsync(
+            EmailTemplates.OtpVerification(normalizedEmail, user.FullName, otp.Code, otp.DateExpired, emailOptions),
+            cancellationToken);
 
         var response = new RegisterUserResponse
         {
@@ -162,6 +169,10 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork) : IOnboardingServi
 
         var otp = await CreateAndTrackOtpAsync(normalizedEmail, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await emailProvider.SendAsync(
+            EmailTemplates.OtpVerification(normalizedEmail, user.FullName, otp.Code, otp.DateExpired, emailOptions),
+            cancellationToken);
 
         var response = new ResendOtpResponse
         {
