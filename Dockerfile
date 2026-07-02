@@ -12,18 +12,19 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["AutVent.CorePlatform.Api.csproj", "AutVent.CorePlatform.Api/AutVent.CorePlatform.Api/"]
-COPY ["AutVent.CorePlatform.Infrastructure/AutVent.CorePlatform.Infrastructure.csproj", "AutVent.CorePlatform.Api/AutVent.CorePlatform.Infrastructure/"]
-COPY ["AutVent.CorePlatform.Domain/AutVent.CorePlatform.Domain.csproj", "AutVent.CorePlatform.Api/AutVent.CorePlatform.Domain/"]
-RUN dotnet restore "./AutVent.CorePlatform.Api/AutVent.CorePlatform.Api.csproj"
+COPY ["AutVent.CorePlatform.Api/AutVent.CorePlatform.Api.csproj", "AutVent.CorePlatform.Api/"]
+COPY ["AutVent.CorePlatform.Infrastructure/AutVent.CorePlatform.Infrastructure.csproj", "AutVent.CorePlatform.Infrastructure/"]
+COPY ["AutVent.CorePlatform.Domain/AutVent.CorePlatform.Domain.csproj", "AutVent.CorePlatform.Domain/"]
+COPY ["AutVent.CorePlatform.Application/AutVent.CorePlatform.Application.csproj", "AutVent.CorePlatform.Application/"]
+RUN dotnet restore "AutVent.CorePlatform.Api/AutVent.CorePlatform.Api.csproj"
 COPY . .
 WORKDIR "/src/AutVent.CorePlatform.Api"
-RUN dotnet build "./AutVent.CorePlatform.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "AutVent.CorePlatform.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./AutVent.CorePlatform.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "AutVent.CorePlatform.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
