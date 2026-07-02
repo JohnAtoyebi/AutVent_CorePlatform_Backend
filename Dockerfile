@@ -12,7 +12,9 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["AutVent.CorePlatform.Api/AutVent.CorePlatform.Api.csproj", "AutVent.CorePlatform.Api/"]
+COPY ["AutVent.CorePlatform.Api.csproj", "AutVent.CorePlatform.Api/AutVent.CorePlatform.Api/"]
+COPY ["AutVent.CorePlatform.Infrastructure/AutVent.CorePlatform.Infrastructure.csproj", "AutVent.CorePlatform.Api/AutVent.CorePlatform.Infrastructure/"]
+COPY ["AutVent.CorePlatform.Domain/AutVent.CorePlatform.Domain.csproj", "AutVent.CorePlatform.Api/AutVent.CorePlatform.Domain/"]
 RUN dotnet restore "./AutVent.CorePlatform.Api/AutVent.CorePlatform.Api.csproj"
 COPY . .
 WORKDIR "/src/AutVent.CorePlatform.Api"
