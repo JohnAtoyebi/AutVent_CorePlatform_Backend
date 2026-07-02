@@ -41,7 +41,22 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
                 [new ApiError("DuplicatePhone", "Phone number already exists", nameof(request.PhoneNumber))]);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.ReferralCode))
+        {
+            var referralCodeExists = await unitOfWork.Query<User>()
+                .AnyAsync(x => x.ReferralCode == request.ReferralCode.Trim(), cancellationToken);
+
+            if (!referralCodeExists)
+            {
+                return ApiResponse<RegisterUserResponse>.Failed(
+                    StatusCodes.Status400BadRequest,
+                    "Invalid referral code",
+                    [new ApiError("InvalidReferralCode", "The referral code provided is not valid", nameof(request.ReferralCode))]);
+            }
+        }
+
         var utcNow = DateTime.UtcNow;
+        var referralCode = await GenerateUniqueReferralCodeAsync(cancellationToken);
 
         var user = new User
         {
@@ -49,7 +64,7 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
             EmailAddress = normalizedEmail,
             PhoneNumber = normalizedPhone,
             Password = PasswordHasher.Hash(request.Password),
-            ReferralCode = string.IsNullOrWhiteSpace(request.ReferralCode) ? null : request.ReferralCode.Trim(),
+            ReferralCode = referralCode,
             IsActive = false,
             CreatedBy = SystemActor,
             DateCreated = utcNow
@@ -215,4 +230,16 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
     }
 
     private static string GenerateOtpCode() => Random.Shared.Next(100000, 1000000).ToString();
+
+    private async Task<string> GenerateUniqueReferralCodeAsync(CancellationToken cancellationToken)
+    {
+        string code;
+        do
+        {
+            code = ReferralCodeGenerator.Generate();
+        }
+        while (await unitOfWork.Query<User>().AnyAsync(x => x.ReferralCode == code, cancellationToken));
+
+        return code;
+    }
 }
