@@ -10,7 +10,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
 {
     private const string SystemActor = "system";
 
-    public async Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var businessName = request.Name.Trim();
         var industryName = request.Industry.Trim();
@@ -18,14 +18,14 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         var now = DateTime.UtcNow;
 
         var user = await unitOfWork.Query<User>()
-            .FirstOrDefaultAsync(x => x.Id == request.UserId, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
 
         if (user is null)
         {
             return ApiResponse<CreateBusinessResponse>.Failed(
                 StatusCodes.Status404NotFound,
                 "User not found",
-                [new ApiError("UserNotFound", "No user found for this id", nameof(request.UserId))]);
+                [new ApiError("UserNotFound", "No user found for this id", "userId")]);
         }
 
         if (!user.IsActive)
@@ -33,11 +33,11 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
             return ApiResponse<CreateBusinessResponse>.Failed(
                 StatusCodes.Status409Conflict,
                 "User email is not verified",
-                [new ApiError("UserNotVerified", "Verify user email before creating business", nameof(request.UserId))]);
+                [new ApiError("UserNotVerified", "Verify user email before creating business", "userId")]);
         }
 
         var businessExists = await unitOfWork.Query<Business>()
-            .AnyAsync(x => x.UserId == request.UserId && x.BusinessName.ToLower() == businessName.ToLower(), cancellationToken);
+            .AnyAsync(x => x.UserId == userId && x.BusinessName.ToLower() == businessName.ToLower(), cancellationToken);
 
         if (businessExists)
         {

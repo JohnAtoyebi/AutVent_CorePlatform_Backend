@@ -1,13 +1,14 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/[controller]")]
-[ApiController]
-public class BusinessController(IBusinessService businessService) : ControllerBase
+[Authorize]
+public class BusinessController(IBusinessService businessService) : ApiControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status201Created)]
@@ -15,7 +16,7 @@ public class BusinessController(IBusinessService businessService) : ControllerBa
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateBusinessRequest request, CancellationToken cancellationToken)
     {
-        var response = await businessService.CreateAsync(request, cancellationToken);
+        var response = await businessService.CreateAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 

@@ -1,13 +1,14 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/[controller]")]
-[ApiController]
-public class ProductController(IProductService productService) : ControllerBase
+[Authorize]
+public class ProductController(IProductService productService) : ApiControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status201Created)]

@@ -1,13 +1,14 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/categories")]
-[ApiController]
-public class CategoryController(ICategoryService categoryService) : ControllerBase
+[Authorize]
+public class CategoryController(ICategoryService categoryService) : ApiControllerBase
 {
     [HttpGet("business-industries")]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<CategoryResponse>>), StatusCodes.Status200OK)]

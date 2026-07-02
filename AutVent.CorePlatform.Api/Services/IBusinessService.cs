@@ -5,7 +5,7 @@ namespace AutVent.CorePlatform.Api.Services;
 
 public interface IBusinessService
 {
-    Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<CreateBusinessResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default);
 }
