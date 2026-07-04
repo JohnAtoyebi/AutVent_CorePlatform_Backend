@@ -13,6 +13,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +96,17 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         {
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.Property(x => x.Token).HasMaxLength(500).IsRequired();
+            entity.HasIndex(x => x.Token).IsUnique();
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         ConfigureBaseEntityProperties(modelBuilder);
