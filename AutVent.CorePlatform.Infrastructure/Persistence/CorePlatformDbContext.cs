@@ -13,6 +13,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -106,6 +107,20 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(200);
+            entity.HasIndex(x => new { x.PhoneNumber, x.StoreId }).IsUnique();
+            entity.HasIndex(x => new { x.Email, x.StoreId }).IsUnique();
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
