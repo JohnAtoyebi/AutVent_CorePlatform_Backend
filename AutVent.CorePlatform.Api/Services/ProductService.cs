@@ -11,7 +11,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 {
     private const string SystemActor = "system";
 
-    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> CreateAsync(IReadOnlyCollection<CreateProductRequest> requests, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> CreateAsync(IReadOnlyCollection<CreateProductRequest> requests, long userId, long storeId, CancellationToken cancellationToken = default)
     {
         if (requests.Count == 0)
         {
@@ -21,6 +21,27 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 [new ApiError("EmptyPayload", "Provide one or more products")]);
         }
 
+        // Validate store exists and belongs to the user
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
+
+        if (store is null)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "Store not found",
+                [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
+        }
+
+        if (store.Business.UserId != userId)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status409Conflict,
+                "Store does not belong to the current user",
+                [new ApiError("UnauthorizedStore", "The store does not belong to the current user", nameof(storeId))]);
+        }
+
         var now = DateTime.UtcNow;
         var normalizedRequests = requests
             .Select(x => new
@@ -28,9 +49,23 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 Name = x.Name.Trim(),
                 Price = x.Price.Trim(),
                 Quantity = x.Quantity,
-                Category = x.ProductCategory.Trim()
+                ProductCategoryId = x.ProductCategoryId
             })
             .ToList();
+
+        // Validate no product has zero quantity
+        var zeroQuantityProducts = normalizedRequests
+            .Where(x => x.Quantity <= 0)
+            .Select(x => x.Name)
+            .ToArray();
+
+        if (zeroQuantityProducts.Length > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Product quantity must be greater than 0",
+                zeroQuantityProducts.Select(name => new ApiError("InvalidQuantity", $"Product '{name}' has invalid quantity. Quantity must be greater than 0", nameof(CreateProductRequest.Quantity))));
+        }
 
         var duplicatePayloadNames = normalizedRequests
             .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
@@ -49,7 +84,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var requestNames = normalizedRequests.Select(x => x.Name.ToLower()).ToArray();
 
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()))
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId)
             .Select(x => x.Name)
             .ToListAsync(cancellationToken);
 
@@ -57,38 +92,29 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status409Conflict,
-                "One or more products already exist",
-                existingNames.Select(name => new ApiError("DuplicateProduct", $"Product already exists: {name}", nameof(CreateProductRequest.Name))));
+                "One or more products already exist in this store",
+                existingNames.Select(name => new ApiError("DuplicateProduct", $"Product already exists in this store: {name}", nameof(CreateProductRequest.Name))));
         }
 
-        var categoryNames = normalizedRequests
-            .Select(x => x.Category)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        var categoryIds = normalizedRequests
+            .Select(x => x.ProductCategoryId)
+            .Distinct()
             .ToArray();
 
         var existingCategories = await unitOfWork.Query<ProductCategory>()
-            .Where(x => categoryNames.Contains(x.Name))
+            .Where(x => categoryIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
-        var categoryMap = existingCategories.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
+        var categoryMap = existingCategories.ToDictionary(x => x.Id);
 
-        foreach (var categoryName in categoryNames)
+        // Validate all requested categories exist
+        var missingCategoryIds = categoryIds.Where(id => !categoryMap.ContainsKey(id)).ToArray();
+        if (missingCategoryIds.Length > 0)
         {
-            if (categoryMap.ContainsKey(categoryName))
-            {
-                continue;
-            }
-
-            var category = new ProductCategory
-            {
-                Name = categoryName,
-                IsActive = true,
-                CreatedBy = SystemActor,
-                DateCreated = now
-            };
-
-            await unitOfWork.CreateAsync(category, cancellationToken);
-            categoryMap[categoryName] = category;
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "One or more product categories do not exist",
+                missingCategoryIds.Select(id => new ApiError("InvalidCategory", $"Product category with id {id} does not exist", nameof(CreateProductRequest.ProductCategoryId))));
         }
 
         var products = normalizedRequests
@@ -97,7 +123,9 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 Name = x.Name,
                 Price = x.Price,
                 Quantity = x.Quantity,
-                ProductCategory = categoryMap[x.Category],
+                StoreId = storeId,
+                ProductCategoryId = x.ProductCategoryId,
+                ProductCategory = categoryMap[x.ProductCategoryId],
                 IsActive = true,
                 CreatedBy = SystemActor,
                 DateCreated = now
@@ -114,7 +142,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<IReadOnlyCollection<ProductResponse>>.Created(response, "Products created successfully");
     }
 
-    public async Task<ApiResponse<ProductImportResponse>> ImportAsync(IFormFile file, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ProductImportResponse>> ImportAsync(IFormFile file, long userId, long storeId, CancellationToken cancellationToken = default)
     {
         if (file.Length == 0)
         {
@@ -154,12 +182,12 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             var name = worksheet.Cell(rowNumber, 1).GetString().Trim();
             var price = worksheet.Cell(rowNumber, 2).GetString().Trim();
             var quantityRaw = worksheet.Cell(rowNumber, 3).GetString().Trim();
-            var category = worksheet.Cell(rowNumber, 4).GetString().Trim();
+            var categoryIdRaw = worksheet.Cell(rowNumber, 4).GetString().Trim();
 
             if (string.IsNullOrWhiteSpace(name) ||
                 string.IsNullOrWhiteSpace(price) ||
                 string.IsNullOrWhiteSpace(quantityRaw) ||
-                string.IsNullOrWhiteSpace(category))
+                string.IsNullOrWhiteSpace(categoryIdRaw))
             {
                 errors.Add(new ApiError("InvalidRow", $"Row {rowNumber} has missing required values"));
                 rowNumber++;
@@ -173,12 +201,26 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 continue;
             }
 
+            if (quantity <= 0)
+            {
+                errors.Add(new ApiError("InvalidQuantity", $"Row {rowNumber} has invalid quantity. Quantity must be greater than 0"));
+                rowNumber++;
+                continue;
+            }
+
+            if (!long.TryParse(categoryIdRaw, out var categoryId))
+            {
+                errors.Add(new ApiError("InvalidCategoryId", $"Row {rowNumber} has invalid category id"));
+                rowNumber++;
+                continue;
+            }
+
             requests.Add(new CreateProductRequest
             {
                 Name = name,
                 Price = price,
                 Quantity = quantity,
-                ProductCategory = category
+                ProductCategoryId = categoryId
             });
 
             rowNumber++;
@@ -192,7 +234,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 errors);
         }
 
-        var createResponse = await CreateAsync(requests, cancellationToken);
+        var createResponse = await CreateAsync(requests, userId, storeId, cancellationToken);
         if (!createResponse.Success)
         {
             return ApiResponse<ProductImportResponse>.Failed(

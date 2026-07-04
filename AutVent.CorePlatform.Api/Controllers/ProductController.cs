@@ -10,23 +10,23 @@ namespace AutVent.CorePlatform.Api.Controllers;
 [Authorize]
 public class ProductController(IProductService productService) : ApiControllerBase
 {
-    [HttpPost]
+    [HttpPost("store/{storeId:long}")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Create([FromBody] List<CreateProductRequest> requests, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(long storeId, [FromBody] List<CreateProductRequest> requests, CancellationToken cancellationToken)
     {
-        var response = await productService.CreateAsync(requests, cancellationToken);
+        var response = await productService.CreateAsync(requests, CurrentUserId, storeId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
-    [HttpPost("import")]
+    [HttpPost("store/{storeId:long}/import")]
     [ProducesResponseType(typeof(ApiResponse<ProductImportResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<ProductImportResponse>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<ProductImportResponse>), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Import(IFormFile file, CancellationToken cancellationToken)
+    public async Task<IActionResult> Import(long storeId, IFormFile file, CancellationToken cancellationToken)
     {
-        var response = await productService.ImportAsync(file, cancellationToken);
+        var response = await productService.ImportAsync(file, CurrentUserId, storeId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 

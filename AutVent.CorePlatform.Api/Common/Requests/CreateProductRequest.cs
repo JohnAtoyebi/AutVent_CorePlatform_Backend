@@ -12,10 +12,9 @@ public sealed class CreateProductRequest
     [MaxLength(50)]
     public string Price { get; init; } = string.Empty;
 
-    [Range(0, long.MaxValue)]
+    [Range(1, long.MaxValue)]
     public long Quantity { get; init; }
 
     [Required]
-    [MaxLength(200)]
-    public string ProductCategory { get; init; } = string.Empty;
+    public long ProductCategoryId { get; init; }
 }

@@ -12,8 +12,7 @@ public sealed class CreateStoreRequest
     public string Name { get; init; } = string.Empty;
 
     [Required]
-    [MaxLength(200)]
-    public string StoreCategory { get; init; } = string.Empty;
+    public int StoreCategoryId { get; init; }
 
     [Required]
     [EmailAddress]

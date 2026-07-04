@@ -101,6 +101,23 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
     }
 
+    public async Task<ApiResponse<CreateBusinessResponse>> GetByUserIdAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .Include(x => x.BusinessIndustry)
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this user", nameof(userId))]);
+        }
+
+        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
+    }
+
     public async Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
     {
         var pageNumber = Math.Max(1, request.PageNumber);
