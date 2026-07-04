@@ -14,6 +14,8 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<Sale> Sales => Set<Sale>();
+    public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -122,6 +124,38 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.StoreId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Sale>(entity =>
+        {
+            entity.Property(x => x.SaleNumber).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.DiscountType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.HasIndex(x => x.SaleNumber).IsUnique();
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SaleItem>(entity =>
+        {
+            entity.HasOne(x => x.Sale)
+                .WithMany(x => x.SaleItems)
+                .HasForeignKey(x => x.SaleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Product)
+                .WithMany()
+                .HasForeignKey(x => x.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         ConfigureBaseEntityProperties(modelBuilder);

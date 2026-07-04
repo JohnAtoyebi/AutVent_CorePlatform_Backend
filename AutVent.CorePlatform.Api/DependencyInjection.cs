@@ -23,6 +23,8 @@ public static class DependencyInjection
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBusinessIndustryService, BusinessIndustryService>();
         services.AddScoped<IProductCategoryService, ProductCategoryService>();
+        services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IPosService, PosService>();
         services.AddScoped<BusinessIndustrySeeder>();
         services.AddScoped<StoreCategorySeeder>();
         services.AddScoped<ProductCategorySeeder>();

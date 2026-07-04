@@ -4,3 +4,4 @@
 - Use `IUnitOfWork` and `UnitOfWork` naming for unit-of-work abstractions/implementations instead of `EfUnitOfWork`.
 - Use generic request models for pagination, search, and filtering instead of endpoint-specific query parameters.
 - Move `HashPassword` logic out of service classes into a dedicated static helper class.
+- Use enum types for payment and discount fields (e.g., PaymentMethod and DiscountType) instead of strings in this codebase.
