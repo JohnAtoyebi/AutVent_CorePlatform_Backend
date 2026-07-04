@@ -9,13 +9,21 @@ namespace AutVent.CorePlatform.Api.Services;
 public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
 {
     private const string SystemActor = "system";
+    private static readonly IReadOnlyList<string> ValidStaffRanges = ["1-10", "11-50", "51-200", "200+"];
 
     public async Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var businessName = request.Name.Trim();
-        var industryName = request.Industry.Trim();
         var staffRange = request.StaffRange.Trim();
         var now = DateTime.UtcNow;
+
+        if (!ValidStaffRanges.Contains(staffRange))
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid staff range",
+                [new ApiError("InvalidStaffRange", $"Staff range must be one of: {string.Join(", ", ValidStaffRanges)}", nameof(request.StaffRange))]);
+        }
 
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
@@ -37,30 +45,25 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         }
 
         var businessExists = await unitOfWork.Query<Business>()
-            .AnyAsync(x => x.UserId == userId && x.BusinessName.ToLower() == businessName.ToLower(), cancellationToken);
+            .AnyAsync(x => x.UserId == userId, cancellationToken);
 
         if (businessExists)
         {
             return ApiResponse<CreateBusinessResponse>.Failed(
                 StatusCodes.Status409Conflict,
                 "Business already exists for this user",
-                [new ApiError("DuplicateBusiness", "Business name already exists for this user", nameof(request.Name))]);
+                [new ApiError("DuplicateBusiness", "Business already exists for this user", nameof(request.Name))]);
         }
 
         var industry = await unitOfWork.Query<BusinessIndustry>()
-            .FirstOrDefaultAsync(x => x.Name.ToLower() == industryName.ToLower(), cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == request.IndustryId, cancellationToken);
 
-        if (industry is null)
+        if (industry == null)
         {
-            industry = new BusinessIndustry
-            {
-                Name = industryName,
-                IsActive = true,
-                CreatedBy = SystemActor,
-                DateCreated = now
-            };
-
-            await unitOfWork.CreateAsync(industry, cancellationToken);
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status409Conflict,
+                "Industry does not exists",
+                [new ApiError("InvalidIndustry", "Industry does not exists", nameof(request.IndustryId))]);
         }
 
         var business = new Business

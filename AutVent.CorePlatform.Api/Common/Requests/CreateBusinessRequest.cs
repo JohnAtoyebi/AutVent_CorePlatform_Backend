@@ -9,8 +9,7 @@ public sealed class CreateBusinessRequest
     public string Name { get; init; } = string.Empty;
 
     [Required]
-    [MaxLength(200)]
-    public string Industry { get; init; } = string.Empty;
+    public int IndustryId { get; init; }
 
     [Required]
     [MaxLength(50)]

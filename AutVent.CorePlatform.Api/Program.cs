@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using AutVent.CorePlatform.Api;
 using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Api.Infrastructure;
+using AutVent.CorePlatform.Api.Services;
 using AutVent.CorePlatform.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -77,6 +78,18 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var businessIndustrySeeder = scope.ServiceProvider.GetRequiredService<BusinessIndustrySeeder>();
+    await businessIndustrySeeder.SeedAsync();
+
+    var storeCategorySeeder = scope.ServiceProvider.GetRequiredService<StoreCategorySeeder>();
+    await storeCategorySeeder.SeedAsync();
+
+    var productCategorySeeder = scope.ServiceProvider.GetRequiredService<ProductCategorySeeder>();
+    await productCategorySeeder.SeedAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {
