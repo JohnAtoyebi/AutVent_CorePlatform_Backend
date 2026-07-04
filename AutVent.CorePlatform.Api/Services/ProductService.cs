@@ -440,10 +440,16 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         if (request.Filters is not null)
         {
+            // Filter by category name or category ID
             if (request.Filters.TryGetValue("productCategory", out var categoryFilter) && !string.IsNullOrWhiteSpace(categoryFilter))
             {
-                var category = categoryFilter.Trim().ToLower();
-                query = query.Where(x => x.ProductCategory.Name.ToLower() == category);
+                var categoryLower = categoryFilter.Trim().ToLower();
+                query = query.Where(x => x.ProductCategory.Name.ToLower() == categoryLower);
+            }
+
+            if (request.Filters.TryGetValue("productCategoryId", out var categoryIdFilter) && long.TryParse(categoryIdFilter, out var categoryId))
+            {
+                query = query.Where(x => x.ProductCategoryId == categoryId);
             }
 
             if (request.Filters.TryGetValue("minQuantity", out var minQtyFilter) && long.TryParse(minQtyFilter, out var minQty))
