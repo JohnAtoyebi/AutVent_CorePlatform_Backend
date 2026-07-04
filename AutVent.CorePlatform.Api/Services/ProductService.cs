@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
@@ -43,18 +44,89 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         }
 
         var now = DateTime.UtcNow;
+
+        var businessStoreIds = await unitOfWork.Query<Store>()
+            .Where(x => x.BusinessId == store.BusinessId)
+            .Select(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+
         var normalizedRequests = requests
             .Select(x => new
             {
                 Name = x.Name.Trim(),
                 Price = x.Price.Trim(),
                 Quantity = x.Quantity,
-                ProductCategoryId = x.ProductCategoryId
+                ProductCategoryId = x.ProductCategoryId,
+                Description = NormalizeNullableString(x.Description),
+                Sku = NormalizeNullableString(x.Sku),
+                Barcode = NormalizeNullableString(x.Barcode),
+                CostPrice = NormalizeNullableString(x.CostPrice),
+                CompareAtPrice = NormalizeNullableString(x.CompareAtPrice),
+                ProductImages = NormalizeStringList(x.ProductImages),
+                ProductVariantsEnabled = x.ProductVariantsEnabled,
+                ProductVariants = NormalizeVariants(x.ProductVariants),
+                ActiveProduct = x.ActiveProduct,
+                AvailableOnPos = x.AvailableOnPos,
+                AvailableOnAutShop = x.AvailableOnAutShop,
+                ReorderThreshold = x.ReorderThreshold,
+                StoreId = x.StoreId,
+                ApplyToAllStoreLocations = x.ApplyToAllStoreLocations,
+                Tags = NormalizeStringList(x.Tags),
+                Weight = x.Weight,
+                Supplier = NormalizeNullableString(x.Supplier)
+            })
+            .ToList();
+
+        var invalidStoreOverrides = normalizedRequests
+            .Where(x => x.StoreId.HasValue && !businessStoreIds.Contains(x.StoreId.Value))
+            .Select(x => x.StoreId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (invalidStoreOverrides.Length > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid target store location",
+                invalidStoreOverrides.Select(id => new ApiError("InvalidStoreId", $"Store id {id} does not belong to your business", nameof(CreateProductRequest.StoreId))));
+        }
+
+        var expandedRequests = normalizedRequests
+            .SelectMany(x =>
+            {
+                var targetStoreIds = x.ApplyToAllStoreLocations == true
+                    ? businessStoreIds
+                    : [x.StoreId ?? storeId];
+
+                return targetStoreIds.Select(targetStoreId => new
+                {
+                    x.Name,
+                    x.Price,
+                    x.Quantity,
+                    x.ProductCategoryId,
+                    x.Description,
+                    x.Sku,
+                    x.Barcode,
+                    x.CostPrice,
+                    x.CompareAtPrice,
+                    x.ProductImages,
+                    x.ProductVariantsEnabled,
+                    x.ProductVariants,
+                    x.ActiveProduct,
+                    x.AvailableOnPos,
+                    x.AvailableOnAutShop,
+                    x.ReorderThreshold,
+                    x.ApplyToAllStoreLocations,
+                    x.Tags,
+                    x.Weight,
+                    x.Supplier,
+                    TargetStoreId = targetStoreId
+                });
             })
             .ToList();
 
         // Validate no product has zero quantity
-        var zeroQuantityProducts = normalizedRequests
+        var zeroQuantityProducts = expandedRequests
             .Where(x => x.Quantity <= 0)
             .Select(x => x.Name)
             .ToArray();
@@ -67,8 +139,9 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 zeroQuantityProducts.Select(name => new ApiError("InvalidQuantity", $"Product '{name}' has invalid quantity. Quantity must be greater than 0", nameof(CreateProductRequest.Quantity))));
         }
 
-        var duplicatePayloadNames = normalizedRequests
-            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+        // Check for duplicates in payload
+        var duplicatePayloadNames = expandedRequests
+            .GroupBy(x => new { x.TargetStoreId, Name = x.Name.ToLowerInvariant() })
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
             .ToArray();
@@ -78,25 +151,33 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status400BadRequest,
                 "Duplicate product names in request",
-                duplicatePayloadNames.Select(name => new ApiError("DuplicatePayloadProduct", $"Duplicate product in payload: {name}", nameof(CreateProductRequest.Name))));
+                duplicatePayloadNames.Select(x => new ApiError("DuplicatePayloadProduct", $"Duplicate product in payload for store {x.TargetStoreId}: {x.Name}", nameof(CreateProductRequest.Name))));
         }
 
-        var requestNames = normalizedRequests.Select(x => x.Name.ToLower()).ToArray();
+        var requestNames = expandedRequests.Select(x => x.Name.ToLowerInvariant()).Distinct().ToArray();
+        var requestStoreIds = expandedRequests.Select(x => x.TargetStoreId).Distinct().ToArray();
+        var requestStoreNamePairs = expandedRequests
+            .Select(x => $"{x.TargetStoreId}:{x.Name.ToLowerInvariant()}")
+            .ToHashSet();
 
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId)
-            .Select(x => x.Name)
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId))
+            .Select(x => new { x.Name, x.StoreId })
             .ToListAsync(cancellationToken);
 
-        if (existingNames.Count > 0)
+        var conflictingProducts = existingNames
+            .Where(x => requestStoreNamePairs.Contains($"{x.StoreId}:{x.Name.ToLowerInvariant()}"))
+            .ToList();
+
+        if (conflictingProducts.Count > 0)
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status409Conflict,
-                "One or more products already exist in this store",
-                existingNames.Select(name => new ApiError("DuplicateProduct", $"Product already exists in this store: {name}", nameof(CreateProductRequest.Name))));
+                "One or more products already exist in the target store location",
+                conflictingProducts.Select(x => new ApiError("DuplicateProduct", $"Product already exists in store {x.StoreId}: {x.Name}", nameof(CreateProductRequest.Name))));
         }
 
-        var categoryIds = normalizedRequests
+        var categoryIds = expandedRequests
             .Select(x => x.ProductCategoryId)
             .Distinct()
             .ToArray();
@@ -117,16 +198,31 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 missingCategoryIds.Select(id => new ApiError("InvalidCategory", $"Product category with id {id} does not exist", nameof(CreateProductRequest.ProductCategoryId))));
         }
 
-        var products = normalizedRequests
+        var products = expandedRequests
             .Select(x => new Product
             {
                 Name = x.Name,
                 Price = x.Price,
                 Quantity = x.Quantity,
-                StoreId = storeId,
+                StoreId = x.TargetStoreId,
                 ProductCategoryId = x.ProductCategoryId,
                 ProductCategory = categoryMap[x.ProductCategoryId],
-                IsActive = true,
+                Description = x.Description,
+                Sku = x.Sku ?? GenerateSku(x.Name),
+                Barcode = x.Barcode,
+                CostPrice = x.CostPrice,
+                CompareAtPrice = x.CompareAtPrice,
+                ProductImagesJson = SerializeStringList(x.ProductImages),
+                ProductVariantsEnabled = x.ProductVariantsEnabled,
+                ProductVariantsJson = SerializeVariants(x.ProductVariants),
+                IsActive = x.ActiveProduct ?? true,
+                AvailableOnPos = x.AvailableOnPos ?? true,
+                AvailableOnAutShop = x.AvailableOnAutShop ?? true,
+                ReorderThreshold = x.ReorderThreshold,
+                ApplyToAllStoreLocations = x.ApplyToAllStoreLocations,
+                TagsJson = SerializeStringList(x.Tags),
+                Weight = x.Weight,
+                Supplier = x.Supplier,
                 CreatedBy = SystemActor,
                 DateCreated = now
             })
@@ -361,7 +457,10 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                     StoreId = storeId,
                     ProductCategoryId = matchedCategory.Id,
                     ProductCategory = matchedCategory,
+                    Sku = GenerateSku(x.Name),
                     IsActive = true,
+                    AvailableOnPos = true,
+                    AvailableOnAutShop = true,
                     CreatedBy = SystemActor,
                     DateCreated = now
                 };
@@ -372,14 +471,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var response = products
-            .Select(x => new ProductResponse
-            {
-                ProductId = x.Id,
-                Name = x.Name,
-                Price = x.Price,
-                Quantity = x.Quantity,
-                ProductCategory = x.ProductCategory.Name
-            })
+            .Select(x => MapToResponse(x, x.ProductCategory.Name))
             .ToArray();
 
         return ApiResponse<ProductImportResponse>.Created(
@@ -470,19 +562,15 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var items = await query
+        var records = await query
             .OrderBy(x => x.Name)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(x => new ProductResponse
-            {
-                ProductId = x.Id,
-                Name = x.Name,
-                Price = x.Price,
-                Quantity = x.Quantity,
-                ProductCategory = x.ProductCategory.Name
-            })
             .ToListAsync(cancellationToken);
+
+        var items = records
+            .Select(x => MapToResponse(x, x.ProductCategory.Name))
+            .ToList();
 
         var paged = new PagedResponse<ProductResponse>
         {
@@ -496,12 +584,97 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<PagedResponse<ProductResponse>>.Ok(paged);
     }
 
+    private static string GenerateSku(string productName)
+    {
+        var prefix = new string(productName
+            .Where(char.IsLetterOrDigit)
+            .Take(3)
+            .ToArray())
+            .ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            prefix = "PRD";
+        }
+
+        return $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..24];
+    }
+
+    private static string? NormalizeNullableString(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static List<string>? NormalizeStringList(List<string>? values)
+    {
+        if (values is null || values.Count == 0)
+        {
+            return null;
+        }
+
+        var cleaned = values
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return cleaned.Count == 0 ? null : cleaned;
+    }
+
+    private static List<CreateProductVariantRequest>? NormalizeVariants(List<CreateProductVariantRequest>? variants)
+    {
+        if (variants is null || variants.Count == 0)
+        {
+            return null;
+        }
+
+        var cleaned = variants
+            .Select(v => new CreateProductVariantRequest
+            {
+                Variant = NormalizeNullableString(v.Variant),
+                Sku = NormalizeNullableString(v.Sku),
+                Price = NormalizeNullableString(v.Price),
+                Quantity = v.Quantity
+            })
+            .Where(v => v.Variant is not null || v.Sku is not null || v.Price is not null || v.Quantity.HasValue)
+            .ToList();
+
+        return cleaned.Count == 0 ? null : cleaned;
+    }
+
+    private static string? SerializeStringList(List<string>? items)
+        => items is null ? null : JsonSerializer.Serialize(items);
+
+    private static string? SerializeVariants(List<CreateProductVariantRequest>? variants)
+        => variants is null ? null : JsonSerializer.Serialize(variants);
+
+    private static List<string>? DeserializeStringList(string? json)
+        => string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<List<string>>(json);
+
+    private static List<ProductVariantResponse>? DeserializeVariants(string? json)
+        => string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<List<ProductVariantResponse>>(json);
+
     private static ProductResponse MapToResponse(Product product, string categoryName) => new()
     {
         ProductId = product.Id,
+        StoreId = product.StoreId,
         Name = product.Name,
         Price = product.Price,
         Quantity = product.Quantity,
-        ProductCategory = categoryName
+        ProductCategory = categoryName,
+        Description = product.Description,
+        Sku = product.Sku,
+        Barcode = product.Barcode,
+        CostPrice = product.CostPrice,
+        CompareAtPrice = product.CompareAtPrice,
+        ProductImages = DeserializeStringList(product.ProductImagesJson),
+        ProductVariantsEnabled = product.ProductVariantsEnabled,
+        ProductVariants = DeserializeVariants(product.ProductVariantsJson),
+        ActiveProduct = product.IsActive,
+        AvailableOnPos = product.AvailableOnPos,
+        AvailableOnAutShop = product.AvailableOnAutShop,
+        ReorderThreshold = product.ReorderThreshold,
+        ApplyToAllStoreLocations = product.ApplyToAllStoreLocations,
+        Tags = DeserializeStringList(product.TagsJson),
+        Weight = product.Weight,
+        Supplier = product.Supplier
     };
 }

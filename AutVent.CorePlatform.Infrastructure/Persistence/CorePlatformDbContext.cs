@@ -88,6 +88,15 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         {
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Price).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.Sku).HasMaxLength(100);
+            entity.Property(x => x.Barcode).HasMaxLength(100);
+            entity.Property(x => x.CostPrice).HasMaxLength(50);
+            entity.Property(x => x.CompareAtPrice).HasMaxLength(50);
+            entity.Property(x => x.ProductImagesJson);
+            entity.Property(x => x.ProductVariantsJson);
+            entity.Property(x => x.TagsJson);
+            entity.Property(x => x.Supplier).HasMaxLength(200);
 
             entity.HasOne(x => x.ProductCategory)
                 .WithMany()
