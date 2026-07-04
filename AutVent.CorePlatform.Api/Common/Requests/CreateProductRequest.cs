@@ -2,6 +2,21 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AutVent.CorePlatform.Api.Common.Requests;
 
+public sealed class CreateProductVariantRequest
+{
+    [MaxLength(200)]
+    public string? Variant { get; init; }
+
+    [MaxLength(100)]
+    public string? Sku { get; init; }
+
+    [MaxLength(50)]
+    public string? Price { get; init; }
+
+    [Range(0, long.MaxValue)]
+    public long? Quantity { get; init; }
+}
+
 public sealed class CreateProductRequest
 {
     [Required]
@@ -12,10 +27,52 @@ public sealed class CreateProductRequest
     [MaxLength(50)]
     public string Price { get; init; } = string.Empty;
 
-    [Range(0, long.MaxValue)]
+    [Range(1, long.MaxValue)]
     public long Quantity { get; init; }
 
     [Required]
+    public long ProductCategoryId { get; init; }
+
+    [MaxLength(100)]
+    public string? Sku { get; init; }
+
+    [MaxLength(1000)]
+    public string? Description { get; init; }
+
+    [MaxLength(100)]
+    public string? Barcode { get; init; }
+
+    [MaxLength(50)]
+    public string? CostPrice { get; init; }
+
+    [MaxLength(50)]
+    public string? CompareAtPrice { get; init; }
+
+    public List<string>? ProductImages { get; init; }
+
+    public bool? ProductVariantsEnabled { get; init; }
+
+    public List<CreateProductVariantRequest>? ProductVariants { get; init; }
+
+    public bool? ActiveProduct { get; init; } = true;
+
+    public bool? AvailableOnPos { get; init; } = true;
+
+    public bool? AvailableOnAutShop { get; init; } = true;
+
+    [Range(0, long.MaxValue)]
+    public long? ReorderThreshold { get; init; }
+
+    [Range(1, long.MaxValue)]
+    public long? StoreId { get; init; }
+
+    public bool? ApplyToAllStoreLocations { get; init; }
+
+    public List<string>? Tags { get; init; }
+
+    [Range(0, double.MaxValue)]
+    public decimal? Weight { get; init; }
+
     [MaxLength(200)]
-    public string ProductCategory { get; init; } = string.Empty;
+    public string? Supplier { get; init; }
 }

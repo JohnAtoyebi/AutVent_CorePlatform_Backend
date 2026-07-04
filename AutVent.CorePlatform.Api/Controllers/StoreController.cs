@@ -16,7 +16,7 @@ public class StoreController(IStoreService storeService) : ApiControllerBase
     [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateStoreRequest request, CancellationToken cancellationToken)
     {
-        var response = await storeService.CreateAsync(request, cancellationToken);
+        var response = await storeService.CreateAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 

@@ -2,16 +2,16 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AutVent.CorePlatform.Api.Common.Requests;
 
-public sealed class CreateBusinessRequest
+public sealed class ImportProductRequest
 {
     [Required]
     [MaxLength(200)]
     public string Name { get; init; } = string.Empty;
 
     [Required]
-    public int IndustryId { get; init; }
-
-    [Required]
     [MaxLength(50)]
-    public string StaffRange { get; init; } = string.Empty;
+    public string Price { get; init; } = string.Empty;
+
+    [Range(1, long.MaxValue)]
+    public long Quantity { get; init; }
 }

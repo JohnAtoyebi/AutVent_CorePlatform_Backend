@@ -3,6 +3,7 @@ using System;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutVent.CorePlatform.Infrastructure.Migrations
 {
     [DbContext(typeof(CorePlatformDbContext))]
-    partial class CorePlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704141158_pos")]
+    partial class pos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -53,9 +56,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("StaffRange")
@@ -102,9 +102,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -156,9 +153,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("PhoneNumber")
@@ -224,9 +218,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsExpired")
                         .HasColumnType("boolean");
 
@@ -271,9 +262,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsUsed")
                         .HasColumnType("boolean");
 
@@ -307,27 +295,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<bool?>("ApplyToAllStoreLocations")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool?>("AvailableOnAutShop")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool?>("AvailableOnPos")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Barcode")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CompareAtPrice")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("CostPrice")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -342,14 +309,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<DateTime?>("DateUpdated")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -365,41 +325,15 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<long>("ProductCategoryId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("ProductImagesJson")
-                        .HasColumnType("text");
-
-                    b.Property<bool?>("ProductVariantsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ProductVariantsJson")
-                        .HasColumnType("text");
-
                     b.Property<long>("Quantity")
                         .HasColumnType("bigint");
-
-                    b.Property<long?>("ReorderThreshold")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Sku")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<long>("StoreId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Supplier")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("TagsJson")
-                        .HasColumnType("text");
-
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<decimal?>("Weight")
-                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 
@@ -433,9 +367,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -502,9 +433,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -518,11 +446,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<long>("StoreId")
                         .HasColumnType("bigint");
@@ -575,9 +498,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<decimal>("LineTotal")
@@ -641,9 +561,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -693,9 +610,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -748,9 +662,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Password")

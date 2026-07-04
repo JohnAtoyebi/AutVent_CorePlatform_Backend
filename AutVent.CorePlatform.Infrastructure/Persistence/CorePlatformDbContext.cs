@@ -13,6 +13,9 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<Sale> Sales => Set<Sale>();
+    public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -85,6 +88,15 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         {
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Price).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.Sku).HasMaxLength(100);
+            entity.Property(x => x.Barcode).HasMaxLength(100);
+            entity.Property(x => x.CostPrice).HasMaxLength(50);
+            entity.Property(x => x.CompareAtPrice).HasMaxLength(50);
+            entity.Property(x => x.ProductImagesJson);
+            entity.Property(x => x.ProductVariantsJson);
+            entity.Property(x => x.TagsJson);
+            entity.Property(x => x.Supplier).HasMaxLength(200);
 
             entity.HasOne(x => x.ProductCategory)
                 .WithMany()
@@ -107,6 +119,53 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(200);
+            entity.HasIndex(x => new { x.PhoneNumber, x.StoreId }).IsUnique();
+            entity.HasIndex(x => new { x.Email, x.StoreId }).IsUnique();
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Sale>(entity =>
+        {
+            entity.Property(x => x.SaleNumber).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.DiscountType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.HasIndex(x => x.SaleNumber).IsUnique();
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SaleItem>(entity =>
+        {
+            entity.HasOne(x => x.Sale)
+                .WithMany(x => x.SaleItems)
+                .HasForeignKey(x => x.SaleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Product)
+                .WithMany()
+                .HasForeignKey(x => x.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         ConfigureBaseEntityProperties(modelBuilder);

@@ -3,6 +3,7 @@ using System;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutVent.CorePlatform.Infrastructure.Migrations
 {
     [DbContext(typeof(CorePlatformDbContext))]
-    partial class CorePlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704113318_customers")]
+    partial class customers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -53,9 +56,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("StaffRange")
@@ -102,9 +102,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -156,9 +153,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("PhoneNumber")
@@ -224,9 +218,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsExpired")
                         .HasColumnType("boolean");
 
@@ -271,9 +262,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsUsed")
                         .HasColumnType("boolean");
 
@@ -307,27 +295,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<bool?>("ApplyToAllStoreLocations")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool?>("AvailableOnAutShop")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool?>("AvailableOnPos")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Barcode")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CompareAtPrice")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("CostPrice")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<string>("CreatedBy")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -342,14 +309,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<DateTime?>("DateUpdated")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -365,41 +325,15 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<long>("ProductCategoryId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("ProductImagesJson")
-                        .HasColumnType("text");
-
-                    b.Property<bool?>("ProductVariantsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ProductVariantsJson")
-                        .HasColumnType("text");
-
                     b.Property<long>("Quantity")
                         .HasColumnType("bigint");
-
-                    b.Property<long?>("ReorderThreshold")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("Sku")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<long>("StoreId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Supplier")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("TagsJson")
-                        .HasColumnType("text");
-
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<decimal?>("Weight")
-                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 
@@ -435,9 +369,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -453,159 +384,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductCategories");
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<decimal>("AmountPaid")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("BalanceRemaining")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("ChangeAmount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<long?>("CustomerId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateDeleted")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateUpdated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("DiscountType")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("DiscountValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("PaymentMethod")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("SaleNumber")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<long>("StoreId")
-                        .HasColumnType("bigint");
-
-                    b.Property<decimal>("SubTotal")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("TaxAmount")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("SaleNumber")
-                        .IsUnique();
-
-                    b.HasIndex("StoreId");
-
-                    b.ToTable("Sales");
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SaleItem", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateDeleted")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateUpdated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("LineTotal")
-                        .HasColumnType("numeric");
-
-                    b.Property<long>("ProductId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Quantity")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("SaleId")
-                        .HasColumnType("bigint");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("SaleId");
-
-                    b.ToTable("SaleItems");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Store", b =>
@@ -639,9 +417,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -695,9 +470,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -748,9 +520,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Password")
@@ -845,43 +614,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("Store");
                 });
 
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
-                {
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Customer", "Customer")
-                        .WithMany()
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Customer");
-
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SaleItem", b =>
-                {
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Sale", "Sale")
-                        .WithMany("SaleItems")
-                        .HasForeignKey("SaleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("Sale");
-                });
-
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Store", b =>
                 {
                     b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
@@ -904,11 +636,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>
                 {
                     b.Navigation("Stores");
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
-                {
-                    b.Navigation("SaleItems");
                 });
 #pragma warning restore 612, 618
         }
