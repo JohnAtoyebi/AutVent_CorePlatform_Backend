@@ -57,4 +57,36 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
         var response = await productService.GetAllAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPut("store/{storeId:long}/{id:long}")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Update(long storeId, long id, [FromBody] CreateProductRequest request, CancellationToken cancellationToken)
+    {
+        var response = await productService.UpdateAsync(id, request, CurrentUserId, storeId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpDelete("{id:long}")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
+    {
+        var response = await productService.DeleteAsync(id, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPatch("{id:long}/status")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UpdateStatus(long id, [FromBody] UpdateProductStatusRequest request, CancellationToken cancellationToken)
+    {
+        var response = await productService.UpdateStatusAsync(id, request.IsActive, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }

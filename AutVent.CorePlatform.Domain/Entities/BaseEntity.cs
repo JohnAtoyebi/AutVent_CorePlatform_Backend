@@ -4,6 +4,7 @@ public class BaseEntity
 {
     public long Id { get; set; }
     public bool IsActive { get; set; }
+    public bool IsDeleted { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public string? UpdatedBy { get; set; } 
     public DateTime DateCreated { get; set; }

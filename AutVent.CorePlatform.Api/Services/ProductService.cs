@@ -677,4 +677,274 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         Weight = product.Weight,
         Supplier = product.Supplier
     };
+
+    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> UpdateAsync(long id, CreateProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .Include(x => x.ProductCategory)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        var businessStoreIds = await unitOfWork.Query<Store>()
+            .Where(x => x.BusinessId == product.Store.BusinessId)
+            .Select(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+
+        var targetStoreIds = request.ApplyToAllStoreLocations == true
+            ? businessStoreIds
+            : [request.StoreId ?? storeId];
+
+        var invalidTargetStores = targetStoreIds
+            .Where(x => !businessStoreIds.Contains(x))
+            .Distinct()
+            .ToArray();
+
+        if (invalidTargetStores.Length > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid target store location",
+                invalidTargetStores.Select(x => new ApiError("InvalidStoreId", $"Store id {x} does not belong to your business", nameof(CreateProductRequest.StoreId))));
+        }
+
+        var targetProducts = request.ApplyToAllStoreLocations == true
+            ? await unitOfWork.Query<Product>()
+                .Include(x => x.ProductCategory)
+                .Where(x =>
+                    x.Store.BusinessId == product.Store.BusinessId &&
+                    targetStoreIds.Contains(x.StoreId) &&
+                    x.Name.ToLower() == product.Name.ToLower())
+                .ToListAsync(cancellationToken)
+            : await unitOfWork.Query<Product>()
+                .Include(x => x.ProductCategory)
+                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId))
+                .ToListAsync(cancellationToken);
+
+        if (targetProducts.Count == 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "No product found for the target store location",
+                [new ApiError("ProductNotFound", "No matching product found for the selected store location", nameof(request.StoreId))]);
+        }
+
+        if (request.Quantity <= 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Product quantity must be greater than 0",
+                [new ApiError("InvalidQuantity", "Quantity must be greater than 0", nameof(request.Quantity))]);
+        }
+
+        var normalizedName = request.Name.Trim();
+        var normalizedPrice = request.Price.Trim();
+
+        var category = await unitOfWork.Query<ProductCategory>()
+            .FirstOrDefaultAsync(x => x.Id == request.ProductCategoryId, cancellationToken);
+
+        if (category is null)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product category not found",
+                [new ApiError("InvalidCategory", "Product category does not exist", nameof(request.ProductCategoryId))]);
+        }
+
+        var targetStoreIdSet = targetProducts.Select(x => x.StoreId).Distinct().ToArray();
+        var targetProductIds = targetProducts.Select(x => x.Id).ToArray();
+
+        var duplicateProducts = await unitOfWork.Query<Product>()
+            .Where(x =>
+                targetStoreIdSet.Contains(x.StoreId) &&
+                x.Name.ToLower() == normalizedName.ToLower() &&
+                !targetProductIds.Contains(x.Id))
+            .Select(x => new { x.StoreId, x.Name })
+            .ToListAsync(cancellationToken);
+
+        if (duplicateProducts.Count > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status409Conflict,
+                "A product with this name already exists in one or more target store locations",
+                duplicateProducts.Select(x => new ApiError("DuplicateProduct", $"Product already exists in store {x.StoreId}: {x.Name}", nameof(request.Name))));
+        }
+
+        var normalizedSku = NormalizeNullableString(request.Sku);
+        var normalizedDescription = NormalizeNullableString(request.Description);
+        var normalizedBarcode = NormalizeNullableString(request.Barcode);
+        var normalizedCostPrice = NormalizeNullableString(request.CostPrice);
+        var normalizedCompareAtPrice = NormalizeNullableString(request.CompareAtPrice);
+        var normalizedSupplier = NormalizeNullableString(request.Supplier);
+        var normalizedImages = NormalizeStringList(request.ProductImages);
+        var normalizedVariants = NormalizeVariants(request.ProductVariants);
+        var normalizedTags = NormalizeStringList(request.Tags);
+
+        var now = DateTime.UtcNow;
+        foreach (var targetProduct in targetProducts)
+        {
+            targetProduct.Name = normalizedName;
+            targetProduct.Price = normalizedPrice;
+            targetProduct.Quantity = request.Quantity;
+            targetProduct.ProductCategoryId = request.ProductCategoryId;
+            targetProduct.ProductCategory = category;
+
+            if (request.Description is not null)
+                targetProduct.Description = normalizedDescription;
+
+            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSku(normalizedName);
+
+            if (request.Barcode is not null)
+                targetProduct.Barcode = normalizedBarcode;
+
+            if (request.CostPrice is not null)
+                targetProduct.CostPrice = normalizedCostPrice;
+
+            if (request.CompareAtPrice is not null)
+                targetProduct.CompareAtPrice = normalizedCompareAtPrice;
+
+            if (request.ProductImages is not null)
+                targetProduct.ProductImagesJson = SerializeStringList(normalizedImages);
+
+            if (request.ProductVariantsEnabled.HasValue)
+                targetProduct.ProductVariantsEnabled = request.ProductVariantsEnabled;
+
+            if (request.ProductVariants is not null)
+                targetProduct.ProductVariantsJson = SerializeVariants(normalizedVariants);
+
+            if (request.ActiveProduct.HasValue)
+                targetProduct.IsActive = request.ActiveProduct.Value;
+
+            if (request.AvailableOnPos.HasValue)
+                targetProduct.AvailableOnPos = request.AvailableOnPos;
+
+            if (request.AvailableOnAutShop.HasValue)
+                targetProduct.AvailableOnAutShop = request.AvailableOnAutShop;
+
+            if (request.ReorderThreshold.HasValue)
+                targetProduct.ReorderThreshold = request.ReorderThreshold;
+
+            if (request.ApplyToAllStoreLocations.HasValue)
+                targetProduct.ApplyToAllStoreLocations = request.ApplyToAllStoreLocations;
+
+            if (request.Tags is not null)
+                targetProduct.TagsJson = SerializeStringList(normalizedTags);
+
+            if (request.Weight.HasValue)
+                targetProduct.Weight = request.Weight;
+
+            if (request.Supplier is not null)
+                targetProduct.Supplier = normalizedSupplier;
+
+            targetProduct.DateUpdated = now;
+            targetProduct.UpdatedBy = SystemActor;
+            unitOfWork.Update(targetProduct);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var response = targetProducts
+            .Select(x => MapToResponse(x, x.ProductCategory.Name))
+            .ToArray();
+
+        return ApiResponse<IReadOnlyCollection<ProductResponse>>.Ok(response, "Product updated successfully");
+    }
+
+    public async Task<ApiResponse<bool>> DeleteAsync(long id, long userId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<bool>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<bool>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        if (!product.IsActive)
+        {
+            return ApiResponse<bool>.Ok(true, "Product is already inactive");
+        }
+
+        var now = DateTime.UtcNow;
+        product.IsActive = false;
+        product.DateDeleted = now;
+        product.DateUpdated = now;
+        product.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(product);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<bool>.Ok(true, "Product deleted successfully");
+    }
+
+    public async Task<ApiResponse<bool>> UpdateStatusAsync(long id, bool isActive, long userId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<bool>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<bool>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        if (product.IsActive == isActive)
+        {
+            var message = isActive ? "Product is already active" : "Product is already inactive";
+            return ApiResponse<bool>.Ok(true, message);
+        }
+
+        var now = DateTime.UtcNow;
+        product.IsActive = isActive;
+        product.DateDeleted = isActive ? null : now;
+        product.DateUpdated = now;
+        product.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(product);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var successMessage = isActive ? "Product activated successfully" : "Product deactivated successfully";
+        return ApiResponse<bool>.Ok(true, successMessage);
+    }
 }
