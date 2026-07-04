@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using AutVent.CorePlatform.Api.Common;
 using AutVent.CorePlatform.Api.Common.Email;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
@@ -18,7 +20,8 @@ public sealed class AuthenticationService(
     IUnitOfWork unitOfWork,
     IConfiguration configuration,
     IEmailProvider emailProvider,
-    IOptions<EmailOptions> emailOptions) : IAuthenticationService
+    IOptions<EmailOptions> emailOptions,
+    IOptions<AppOptions> appOptions) : IAuthenticationService
 {
     private const string SystemActor = "system";
 
@@ -54,32 +57,128 @@ public sealed class AuthenticationService(
                 [new ApiError("InvalidCredentials", "Email or password is incorrect")]);
         }
 
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.UserId == user.Id, cancellationToken);
+
         var response = new SignInResponse
         {
             UserId = user.Id,
             FullName = user.FullName,
             EmailAddress = user.EmailAddress,
-            AccessToken = GenerateAccessToken(user)
+            AccessToken = GenerateAccessToken(user),
+            IsBusinessCreated = business == null ? false : true
         };
 
         return ApiResponse<SignInResponse>.Ok(response, "Sign in successful");
     }
 
-    public async Task<ApiResponse<ResetPasswordResponse>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ForgotPasswordResponse>> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.EmailAddress.Trim().ToLowerInvariant();
+        var now = DateTime.UtcNow;
+
+        var resetBaseUrl = appOptions.Value.PasswordResetBaseUrl;
+
+        if (string.IsNullOrWhiteSpace(resetBaseUrl))
+        {
+            throw new InvalidOperationException("PasswordResetBaseUrl is not configured.");
+        }
 
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
         if (user is null)
         {
-            return ApiResponse<ResetPasswordResponse>.Failed(
+            return ApiResponse<ForgotPasswordResponse>.Failed(
                 StatusCodes.Status404NotFound,
                 "User not found",
                 [new ApiError("UserNotFound", "No user found for this email", nameof(request.EmailAddress))]);
         }
 
+        if (!user.IsActive)
+        {
+            return ApiResponse<ForgotPasswordResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "Email is not verified",
+                [new ApiError("EmailNotVerified", "Verify your email before resetting password", nameof(request.EmailAddress))]);
+        }
+
+        var activeTokens = await unitOfWork.Query<PasswordResetToken>()
+            .Where(x => x.UserId == user.Id && !x.IsUsed)
+            .ToListAsync(cancellationToken);
+
+        foreach (var active in activeTokens)
+        {
+            active.IsUsed = true;
+            active.IsActive = false;
+            active.DateUpdated = now;
+            active.UpdatedBy = SystemActor;
+            unitOfWork.Update(active);
+        }
+
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var expiresAt = now.AddMinutes(appOptions.Value.PasswordResetExpiryMinutes);
+
+        var resetToken = new PasswordResetToken
+        {
+            UserId = user.Id,
+            Token = rawToken,
+            DateExpired = expiresAt,
+            IsUsed = false,
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = now
+        };
+
+        await unitOfWork.CreateAsync(resetToken, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var resetLink = $"{resetBaseUrl.TrimEnd('/')}?token={Uri.EscapeDataString(rawToken)}";
+
+        await emailProvider.SendAsync(
+            EmailTemplates.ForgotPassword(normalizedEmail, user.FullName, resetLink, expiresAt, emailOptions),
+            cancellationToken);
+
+        var response = new ForgotPasswordResponse
+        {
+            EmailAddress = normalizedEmail,
+            TokenExpiresAtUtc = expiresAt
+        };
+
+        return ApiResponse<ForgotPasswordResponse>.Ok(response, "Password reset link has been sent to your email");
+    }
+
+    public async Task<ApiResponse<ResetPasswordResponse>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        var resetToken = await unitOfWork.Query<PasswordResetToken>()
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.Token == request.Token, cancellationToken);
+
+        if (resetToken is null)
+        {
+            return ApiResponse<ResetPasswordResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid reset token",
+                [new ApiError("InvalidToken", "The reset token is invalid", nameof(request.Token))]);
+        }
+
+        if (resetToken.IsUsed || resetToken.DateExpired <= now)
+        {
+            resetToken.IsUsed = true;
+            resetToken.DateUpdated = now;
+            resetToken.UpdatedBy = SystemActor;
+            unitOfWork.Update(resetToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return ApiResponse<ResetPasswordResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Reset token has expired or already been used",
+                [new ApiError("ExpiredToken", "Request a new password reset link", nameof(request.Token))]);
+        }
+
+        var user = resetToken.User;
         var newHashedPassword = PasswordHasher.Hash(request.NewPassword);
 
         if (string.Equals(user.Password, newHashedPassword, StringComparison.Ordinal))
@@ -92,13 +191,18 @@ public sealed class AuthenticationService(
 
         user.Password = newHashedPassword;
         user.UpdatedBy = SystemActor;
-        user.DateUpdated = DateTime.UtcNow;
+        user.DateUpdated = now;
+
+        resetToken.IsUsed = true;
+        resetToken.DateUpdated = now;
+        resetToken.UpdatedBy = SystemActor;
 
         unitOfWork.Update(user);
+        unitOfWork.Update(resetToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         await emailProvider.SendAsync(
-            EmailTemplates.PasswordReset(normalizedEmail, user.FullName, emailOptions),
+            EmailTemplates.PasswordReset(user.EmailAddress, user.FullName, appOptions.Value.AutVentLoginUrl, emailOptions),
             cancellationToken);
 
         var response = new ResetPasswordResponse
@@ -138,7 +242,6 @@ public sealed class AuthenticationService(
             expires: DateTime.UtcNow.AddMinutes(jwt.ExpiryMinutes <= 0 ? 60 : jwt.ExpiryMinutes),
             signingCredentials: credentials);
 
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-        return tokenString;
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
