@@ -1,6 +1,7 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +9,7 @@ namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/[controller]")]
 [Authorize]
-public class ProductController(IProductService productService) : ApiControllerBase
+public class ProductController(IProductService productService, IUnitOfWork unitOfWork) : ApiControllerBase
 {
     [HttpPost("store/{storeId:long}")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status201Created)]
@@ -28,6 +29,15 @@ public class ProductController(IProductService productService) : ApiControllerBa
     {
         var response = await productService.ImportAsync(file, CurrentUserId, storeId, cancellationToken);
         return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("import-template")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetImportTemplate(CancellationToken cancellationToken)
+    {
+        var stream = await ProductImportTemplateGenerator.GenerateTemplateAsync(unitOfWork);
+        return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ProductImportTemplate.xlsx");
     }
 
     [HttpGet("{id:long}")]

@@ -142,6 +142,42 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<IReadOnlyCollection<ProductResponse>>.Created(response, "Products created successfully");
     }
 
+    private static ProductCategory GetBestMatchingCategory(string productName, IReadOnlyList<ProductCategory> availableCategories)
+    {
+        if (availableCategories.Count == 0)
+            return null!;
+
+        var productNameLower = productName.ToLower();
+        var productWords = productNameLower.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+
+        var categoryScores = availableCategories
+            .Select(category =>
+            {
+                var categoryNameLower = category.Name.ToLower();
+                var categoryWords = categoryNameLower.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+
+                // Calculate match score based on word overlap
+                var matchingWords = productWords.Count(pw => 
+                    categoryWords.Any(cw => cw.Contains(pw) || pw.Contains(cw)));
+
+                // Check if product name contains category name (substring match)
+                var substringSimilarity = productNameLower.Contains(categoryNameLower) ? 10 : 0;
+                if (substringSimilarity == 0 && categoryNameLower.Contains(productNameLower))
+                    substringSimilarity = 8;
+
+                var score = (matchingWords * 5) + substringSimilarity;
+
+                return new { Category = category, Score = score };
+            })
+            .OrderByDescending(x => x.Score)
+            .ToList();
+
+        // Return best match if score is reasonable, otherwise default to first category
+        return categoryScores.FirstOrDefault()?.Score > 0 
+            ? categoryScores.First().Category 
+            : availableCategories[0];
+    }
+
     public async Task<ApiResponse<ProductImportResponse>> ImportAsync(IFormFile file, long userId, long storeId, CancellationToken cancellationToken = default)
     {
         if (file.Length == 0)
@@ -173,7 +209,40 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 [new ApiError("EmptyWorkbook", "No worksheet found in the uploaded file")]);
         }
 
-        var requests = new List<CreateProductRequest>();
+        // Validate store exists and belongs to the user
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
+
+        if (store is null)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Store not found",
+                [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
+        }
+
+        if (store.Business.UserId != userId)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status409Conflict,
+                "Store does not belong to the current user",
+                [new ApiError("UnauthorizedStore", "The store does not belong to the current user", nameof(storeId))]);
+        }
+
+        // Get all available categories for smart matching
+        var allCategories = await unitOfWork.Query<ProductCategory>()
+            .ToListAsync(cancellationToken);
+
+        if (allCategories.Count == 0)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "No product categories available",
+                [new ApiError("NoCategoryAvailable", "System requires at least one product category to be available", nameof(ProductCategory))]);
+        }
+
+        var requests = new List<ImportProductRequest>();
         var errors = new List<ApiError>();
         var rowNumber = 2;
 
@@ -182,12 +251,10 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             var name = worksheet.Cell(rowNumber, 1).GetString().Trim();
             var price = worksheet.Cell(rowNumber, 2).GetString().Trim();
             var quantityRaw = worksheet.Cell(rowNumber, 3).GetString().Trim();
-            var categoryIdRaw = worksheet.Cell(rowNumber, 4).GetString().Trim();
 
             if (string.IsNullOrWhiteSpace(name) ||
                 string.IsNullOrWhiteSpace(price) ||
-                string.IsNullOrWhiteSpace(quantityRaw) ||
-                string.IsNullOrWhiteSpace(categoryIdRaw))
+                string.IsNullOrWhiteSpace(quantityRaw))
             {
                 errors.Add(new ApiError("InvalidRow", $"Row {rowNumber} has missing required values"));
                 rowNumber++;
@@ -208,19 +275,11 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 continue;
             }
 
-            if (!long.TryParse(categoryIdRaw, out var categoryId))
-            {
-                errors.Add(new ApiError("InvalidCategoryId", $"Row {rowNumber} has invalid category id"));
-                rowNumber++;
-                continue;
-            }
-
-            requests.Add(new CreateProductRequest
+            requests.Add(new ImportProductRequest
             {
                 Name = name,
                 Price = price,
-                Quantity = quantity,
-                ProductCategoryId = categoryId
+                Quantity = quantity
             });
 
             rowNumber++;
@@ -234,22 +293,102 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 errors);
         }
 
-        var createResponse = await CreateAsync(requests, userId, storeId, cancellationToken);
-        if (!createResponse.Success)
+        var now = DateTime.UtcNow;
+        var normalizedRequests = requests
+            .Select(x => new
+            {
+                Name = x.Name.Trim(),
+                Price = x.Price.Trim(),
+                Quantity = x.Quantity
+            })
+            .ToList();
+
+        // Validate no product has zero quantity
+        var zeroQuantityProducts = normalizedRequests
+            .Where(x => x.Quantity <= 0)
+            .Select(x => x.Name)
+            .ToArray();
+
+        if (zeroQuantityProducts.Length > 0)
         {
             return ApiResponse<ProductImportResponse>.Failed(
-                createResponse.StatusCode,
-                createResponse.Message,
-                createResponse.Errors);
+                StatusCodes.Status400BadRequest,
+                "Product quantity must be greater than 0",
+                zeroQuantityProducts.Select(name => new ApiError("InvalidQuantity", $"Product '{name}' has invalid quantity", nameof(ImportProductRequest.Quantity))));
         }
 
-        var response = new ProductImportResponse
-        {
-            ImportedCount = createResponse.Data?.Count ?? 0,
-            ImportedProducts = createResponse.Data ?? []
-        };
+        // Check for duplicates in payload
+        var duplicatePayloadNames = normalizedRequests
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
 
-        return ApiResponse<ProductImportResponse>.Created(response, "Products imported successfully");
+        if (duplicatePayloadNames.Length > 0)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Duplicate product names in request",
+                duplicatePayloadNames.Select(name => new ApiError("DuplicatePayloadProduct", $"Duplicate product in payload: {name}", nameof(ImportProductRequest.Name))));
+        }
+
+        var requestNames = normalizedRequests.Select(x => x.Name.ToLower()).ToArray();
+
+        // Check if products already exist in store
+        var existingNames = await unitOfWork.Query<Product>()
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId)
+            .Select(x => x.Name)
+            .ToListAsync(cancellationToken);
+
+        if (existingNames.Count > 0)
+        {
+            return ApiResponse<ProductImportResponse>.Failed(
+                StatusCodes.Status409Conflict,
+                "One or more products already exist in this store",
+                existingNames.Select(name => new ApiError("DuplicateProduct", $"Product already exists in this store: {name}", nameof(ImportProductRequest.Name))));
+        }
+
+        // Create products with intelligently matched categories
+        var products = normalizedRequests
+            .Select(x =>
+            {
+                var matchedCategory = GetBestMatchingCategory(x.Name, allCategories);
+                return new Product
+                {
+                    Name = x.Name,
+                    Price = x.Price,
+                    Quantity = x.Quantity,
+                    StoreId = storeId,
+                    ProductCategoryId = matchedCategory.Id,
+                    ProductCategory = matchedCategory,
+                    IsActive = true,
+                    CreatedBy = SystemActor,
+                    DateCreated = now
+                };
+            })
+            .ToArray();
+
+        await unitOfWork.CreateRangeAsync(products, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var response = products
+            .Select(x => new ProductResponse
+            {
+                ProductId = x.Id,
+                Name = x.Name,
+                Price = x.Price,
+                Quantity = x.Quantity,
+                ProductCategory = x.ProductCategory.Name
+            })
+            .ToArray();
+
+        return ApiResponse<ProductImportResponse>.Created(
+            new ProductImportResponse
+            {
+                ImportedCount = products.Length,
+                ImportedProducts = response
+            },
+            "Products imported successfully");
     }
 
     public async Task<ApiResponse<ProductResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default)
