@@ -29,6 +29,7 @@ public sealed class SaleResponse
     public decimal BalanceRemaining { get; init; }
     public decimal ChangeAmount { get; init; }
     public SalePaymentMethod PaymentMethod { get; init; }
+    public SaleStatus Status { get; init; }
     public string? Notes { get; init; }
     public List<SaleItemResponse> Items { get; init; } = [];
     public DateTime SaleDate { get; init; }

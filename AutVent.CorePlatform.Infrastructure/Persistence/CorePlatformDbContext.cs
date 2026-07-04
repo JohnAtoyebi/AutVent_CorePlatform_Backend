@@ -139,6 +139,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         {
             entity.Property(x => x.SaleNumber).HasMaxLength(100).IsRequired();
             entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.Property(x => x.DiscountType).HasConversion<string>().HasMaxLength(20);
             entity.Property(x => x.Notes).HasMaxLength(500);
             entity.HasIndex(x => x.SaleNumber).IsUnique();

@@ -19,6 +19,7 @@ public class Sale : BaseEntity
     public decimal BalanceRemaining { get; set; }
     public decimal ChangeAmount { get; set; }
     public SalePaymentMethod PaymentMethod { get; set; }
+    public SaleStatus Status { get; set; }
     public string? Notes { get; set; }
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
 }

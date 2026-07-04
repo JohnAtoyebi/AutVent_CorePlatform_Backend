@@ -15,3 +15,10 @@ public enum SaleDiscountType
     Percentage = 1,
     Amount = 2
 }
+
+public enum SaleStatus
+{
+    Pending = 1,
+    Completed = 2,
+    Failed = 3
+}

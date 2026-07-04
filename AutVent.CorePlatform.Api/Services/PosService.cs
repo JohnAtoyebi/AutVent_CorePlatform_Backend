@@ -47,6 +47,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
 
         var discountType = request.DiscountValue > 0 ? request.DiscountType : null;
         var isPartPayment = request.PaymentMethod == SalePaymentMethod.PartPayment;
+        var saleStatus = isPartPayment ? SaleStatus.Pending : SaleStatus.Completed;
 
         // Validate store exists and belongs to the user
         var store = await unitOfWork.Query<Store>()
@@ -220,6 +221,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             BalanceRemaining = balanceRemaining,
             ChangeAmount = changeAmount,
             PaymentMethod = request.PaymentMethod,
+            Status = saleStatus,
             Notes = request.Notes,
             SaleItems = saleItems,
             IsActive = true,
@@ -329,6 +331,12 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
                 query = query.Where(x => x.PaymentMethod == parsedPaymentMethod);
             }
 
+            if (request.Filters.TryGetValue("status", out var status) &&
+                Enum.TryParse<SaleStatus>(status, true, out var parsedStatus))
+            {
+                query = query.Where(x => x.Status == parsedStatus);
+            }
+
             if (request.Filters.TryGetValue("startDate", out var startDateStr) && DateTime.TryParse(startDateStr, out var startDate))
             {
                 query = query.Where(x => x.DateCreated.Date >= startDate.Date);
@@ -409,6 +417,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             BalanceRemaining = sale.BalanceRemaining,
             ChangeAmount = sale.ChangeAmount,
             PaymentMethod = sale.PaymentMethod,
+            Status = sale.Status,
             Notes = sale.Notes,
             Items = saleItems,
             SaleDate = sale.DateCreated
