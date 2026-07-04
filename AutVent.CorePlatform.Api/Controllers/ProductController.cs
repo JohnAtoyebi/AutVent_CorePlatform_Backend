@@ -43,9 +43,10 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
     [HttpGet("{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetById(long id, CancellationToken cancellationToken)
     {
-        var response = await productService.GetByIdAsync(id, cancellationToken);
+        var response = await productService.GetByIdAsync(id, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
@@ -53,7 +54,7 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<ProductResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
     {
-        var response = await productService.GetAllAsync(request, cancellationToken);
+        var response = await productService.GetAllAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 }

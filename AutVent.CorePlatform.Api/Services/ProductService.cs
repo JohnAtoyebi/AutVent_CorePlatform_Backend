@@ -391,9 +391,11 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             "Products imported successfully");
     }
 
-    public async Task<ApiResponse<ProductResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ProductResponse>> GetByIdAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -405,16 +407,27 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
         return ApiResponse<ProductResponse>.Ok(MapToResponse(product, product.ProductCategory.Name));
     }
 
-    public async Task<ApiResponse<PagedResponse<ProductResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<ProductResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var pageNumber = Math.Max(1, request.PageNumber);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var query = unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
+            .Where(x => x.Store.Business.UserId == userId)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
