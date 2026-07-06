@@ -16,7 +16,7 @@ public class StoreController(IStoreService storeService) : ApiControllerBase
     [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateStoreRequest request, CancellationToken cancellationToken)
     {
-        var response = await storeService.CreateAsync(request, cancellationToken);
+        var response = await storeService.CreateAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
@@ -25,7 +25,7 @@ public class StoreController(IStoreService storeService) : ApiControllerBase
     [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(long id, CancellationToken cancellationToken)
     {
-        var response = await storeService.GetByIdAsync(id, cancellationToken);
+        var response = await storeService.GetByIdAsync(id, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
@@ -33,7 +33,7 @@ public class StoreController(IStoreService storeService) : ApiControllerBase
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<CreateStoreResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
     {
-        var response = await storeService.GetAllAsync(request, cancellationToken);
+        var response = await storeService.GetAllAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 }

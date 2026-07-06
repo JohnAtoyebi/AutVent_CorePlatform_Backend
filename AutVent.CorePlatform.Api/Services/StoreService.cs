@@ -10,10 +10,9 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
 {
     private const string SystemActor = "system";
 
-    public async Task<ApiResponse<CreateStoreResponse>> CreateAsync(CreateStoreRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<CreateStoreResponse>> CreateAsync(CreateStoreRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var storeName = request.Name.Trim();
-        var storeCategoryName = request.StoreCategory.Trim();
         var normalizedEmail = request.EmailAddress.Trim().ToLowerInvariant();
         var normalizedPhone = request.PhoneNumber.Trim();
         var now = DateTime.UtcNow;
@@ -29,42 +28,34 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
                 [new ApiError("BusinessNotFound", "No business found for this id", nameof(request.BusinessId))]);
         }
 
-        var emailExists = await unitOfWork.Query<Store>()
-            .AnyAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
-
-        if (emailExists)
+        if (business.UserId != userId)
         {
             return ApiResponse<CreateStoreResponse>.Failed(
                 StatusCodes.Status409Conflict,
-                "Store email already exists",
-                [new ApiError("DuplicateStoreEmail", "Store email address already exists", nameof(request.EmailAddress))]);
+                "Business does not belong to the current user",
+                [new ApiError("UnauthorizedBusiness", "The business does not belong to the current user", nameof(request.BusinessId))]);
         }
 
-        var phoneExists = await unitOfWork.Query<Store>()
-            .AnyAsync(x => x.PhoneNumber == normalizedPhone, cancellationToken);
+        var storeNameExists = await unitOfWork.Query<Store>()
+            .AnyAsync(x => x.Name.ToLower() == storeName.ToLower() && x.BusinessId == business.Id, cancellationToken);
 
-        if (phoneExists)
+        if (storeNameExists)
         {
             return ApiResponse<CreateStoreResponse>.Failed(
                 StatusCodes.Status409Conflict,
-                "Store phone number already exists",
-                [new ApiError("DuplicateStorePhone", "Store phone number already exists", nameof(request.PhoneNumber))]);
+                "Store name already exists for this business",
+                [new ApiError("DuplicateStoreName", "Store name already exists for this business", nameof(request.Name))]);
         }
 
         var storeCategory = await unitOfWork.Query<StoreCategory>()
-            .FirstOrDefaultAsync(x => x.Name.ToLower() == storeCategoryName.ToLower(), cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == request.StoreCategoryId, cancellationToken);
 
-        if (storeCategory is null)
+        if (storeCategory == null)
         {
-            storeCategory = new StoreCategory
-            {
-                Name = storeCategoryName,
-                IsActive = true,
-                CreatedBy = SystemActor,
-                DateCreated = now
-            };
-
-            await unitOfWork.CreateAsync(storeCategory, cancellationToken);
+            return ApiResponse<CreateStoreResponse>.Failed(
+                StatusCodes.Status409Conflict,
+                "Store category doesn't exists",
+                [new ApiError("InvalidStoreCategory", "Store category doesn't exists", nameof(request.StoreCategoryId))]);
         }
 
         var store = new Store
@@ -73,7 +64,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
             EmailAddress = normalizedEmail,
             PhoneNumber = normalizedPhone,
             BusinessId = business.Id,
-            StoreCategory = storeCategory,
+            StoreCategoryId = storeCategory.Id,
             IsActive = true,
             CreatedBy = SystemActor,
             DateCreated = now
@@ -85,9 +76,10 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         return ApiResponse<CreateStoreResponse>.Created(MapToResponse(store, storeCategory.Name), "Store created successfully");
     }
 
-    public async Task<ApiResponse<CreateStoreResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<CreateStoreResponse>> GetByIdAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
             .Include(x => x.StoreCategory)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -99,16 +91,26 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(id))]);
         }
 
+        if (store.Business.UserId != userId)
+        {
+            return ApiResponse<CreateStoreResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this store",
+                [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(id))]);
+        }
+
         return ApiResponse<CreateStoreResponse>.Ok(MapToResponse(store, store.StoreCategory.Name));
     }
 
-    public async Task<ApiResponse<PagedResponse<CreateStoreResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<CreateStoreResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var pageNumber = Math.Max(1, request.PageNumber);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var query = unitOfWork.Query<Store>()
+            .Include(x => x.Business)
             .Include(x => x.StoreCategory)
+            .Where(x => x.Business.UserId == userId)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -143,7 +145,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new CreateStoreResponse

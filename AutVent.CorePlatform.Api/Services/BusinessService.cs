@@ -9,13 +9,21 @@ namespace AutVent.CorePlatform.Api.Services;
 public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
 {
     private const string SystemActor = "system";
+    private static readonly IReadOnlyList<string> ValidStaffRanges = ["1-10", "11-50", "51-200", "200+"];
 
     public async Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var businessName = request.Name.Trim();
-        var industryName = request.Industry.Trim();
         var staffRange = request.StaffRange.Trim();
         var now = DateTime.UtcNow;
+
+        if (!ValidStaffRanges.Contains(staffRange))
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid staff range",
+                [new ApiError("InvalidStaffRange", $"Staff range must be one of: {string.Join(", ", ValidStaffRanges)}", nameof(request.StaffRange))]);
+        }
 
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
@@ -37,30 +45,25 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         }
 
         var businessExists = await unitOfWork.Query<Business>()
-            .AnyAsync(x => x.UserId == userId && x.BusinessName.ToLower() == businessName.ToLower(), cancellationToken);
+            .AnyAsync(x => x.UserId == userId, cancellationToken);
 
         if (businessExists)
         {
             return ApiResponse<CreateBusinessResponse>.Failed(
                 StatusCodes.Status409Conflict,
                 "Business already exists for this user",
-                [new ApiError("DuplicateBusiness", "Business name already exists for this user", nameof(request.Name))]);
+                [new ApiError("DuplicateBusiness", "Business already exists for this user", nameof(request.Name))]);
         }
 
         var industry = await unitOfWork.Query<BusinessIndustry>()
-            .FirstOrDefaultAsync(x => x.Name.ToLower() == industryName.ToLower(), cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == request.IndustryId, cancellationToken);
 
-        if (industry is null)
+        if (industry == null)
         {
-            industry = new BusinessIndustry
-            {
-                Name = industryName,
-                IsActive = true,
-                CreatedBy = SystemActor,
-                DateCreated = now
-            };
-
-            await unitOfWork.CreateAsync(industry, cancellationToken);
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status409Conflict,
+                "Industry does not exists",
+                [new ApiError("InvalidIndustry", "Industry does not exists", nameof(request.IndustryId))]);
         }
 
         var business = new Business
@@ -93,6 +96,23 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
                 StatusCodes.Status404NotFound,
                 "Business not found",
                 [new ApiError("BusinessNotFound", "No business found for this id", nameof(id))]);
+        }
+
+        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
+    }
+
+    public async Task<ApiResponse<CreateBusinessResponse>> GetByUserIdAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .Include(x => x.BusinessIndustry)
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this user", nameof(userId))]);
         }
 
         return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
@@ -143,7 +163,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(x => x.BusinessName)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new CreateBusinessResponse

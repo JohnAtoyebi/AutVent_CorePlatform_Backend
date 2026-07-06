@@ -96,7 +96,7 @@ public sealed class CategoryService(IUnitOfWork unitOfWork) : ICategoryService
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new CategoryResponse
@@ -160,7 +160,7 @@ public sealed class CategoryService(IUnitOfWork unitOfWork) : ICategoryService
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new CategoryResponse

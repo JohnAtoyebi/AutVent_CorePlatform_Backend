@@ -55,6 +55,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("StaffRange")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -101,6 +104,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -116,6 +122,68 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("BusinessIndustries");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Customer", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<long>("StoreId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoreId");
+
+                    b.HasIndex("Email", "StoreId")
+                        .IsUnique();
+
+                    b.HasIndex("PhoneNumber", "StoreId")
+                        .IsUnique();
+
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Otp", b =>
@@ -156,6 +224,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsExpired")
                         .HasColumnType("boolean");
 
@@ -172,7 +243,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.ToTable("Otps");
                 });
 
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Product", b =>
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -191,10 +262,94 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<DateTime?>("DateDeleted")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime>("DateExpired")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("DateUpdated")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PasswordResetTokens");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Product", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool?>("ApplyToAllStoreLocations")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("AvailableOnAutShop")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("AvailableOnPos")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Barcode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CompareAtPrice")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CostPrice")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -210,16 +365,47 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<long>("ProductCategoryId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("ProductImagesJson")
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("ProductVariantsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ProductVariantsJson")
+                        .HasColumnType("text");
+
                     b.Property<long>("Quantity")
                         .HasColumnType("bigint");
+
+                    b.Property<long?>("ReorderThreshold")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Sku")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("StoreId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TagsJson")
+                        .HasColumnType("text");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<decimal?>("Weight")
+                        .HasColumnType("numeric");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductCategoryId");
+
+                    b.HasIndex("StoreId");
 
                     b.ToTable("Products");
                 });
@@ -249,6 +435,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -264,6 +453,159 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductCategories");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("BalanceRemaining")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("ChangeAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long?>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("DiscountType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("DiscountValue")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SaleNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<long>("StoreId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SaleNumber")
+                        .IsUnique();
+
+                    b.HasIndex("StoreId");
+
+                    b.ToTable("Sales");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SaleItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasColumnType("numeric");
+
+                    b.Property<long>("ProductId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Quantity")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SaleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SaleId");
+
+                    b.ToTable("SaleItems");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Store", b =>
@@ -297,6 +639,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -348,6 +693,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -402,6 +750,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Password")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -453,6 +804,28 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Customer", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.PasswordResetToken", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Product", b =>
                 {
                     b.HasOne("AutVent.CorePlatform.Domain.Entities.ProductCategory", "ProductCategory")
@@ -461,7 +834,52 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("ProductCategory");
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SaleItem", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Sale", "Sale")
+                        .WithMany("SaleItems")
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Sale");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Store", b =>
@@ -486,6 +904,11 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>
                 {
                     b.Navigation("Stores");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
+                {
+                    b.Navigation("SaleItems");
                 });
 #pragma warning restore 612, 618
         }

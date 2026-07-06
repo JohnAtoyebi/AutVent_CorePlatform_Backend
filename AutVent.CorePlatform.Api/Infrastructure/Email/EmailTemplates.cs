@@ -19,16 +19,19 @@ public static class EmailTemplates
             throw new InvalidOperationException("OtpVerification template alias is not configured.");
         }
 
+        var expiryMinutes = (int)Math.Ceiling((expiresAtUtc - DateTime.UtcNow).TotalMinutes);
+
         return new EmailMessage
         {
             To = toEmail,
             Subject = "Verify your email",
             TemplateAlias = templateAlias,
+            ExpiresAtUtc = expiresAtUtc,
             TemplateVariables = new Dictionary<string, object>
             {
-                ["fullName"] = fullName,
+                ["fullName"] = fullName.Split(' ')[0],
                 ["otp"] = otpCode,
-                ["expiryMinutes"] = 10,
+                ["expiryMinutes"] = expiryMinutes,
                 ["year"] = expiresAtUtc.Year
             }
         };
@@ -37,6 +40,7 @@ public static class EmailTemplates
     public static EmailMessage PasswordReset(
         string toEmail,
         string fullName,
+        string loginLink,
         IOptions<EmailOptions> options)
     {
         var templateAlias = options.Value.Resend.Templates.PasswordReset;
@@ -53,8 +57,38 @@ public static class EmailTemplates
             TemplateAlias = templateAlias,
             TemplateVariables = new Dictionary<string, object>
             {
-                ["fullName"] = fullName,
+                ["fullName"] = fullName.Split(' ')[0],
+                ["loginLink"] = loginLink,
                 ["year"] = DateTime.UtcNow.Year
+            }
+        };
+    }
+
+    public static EmailMessage ForgotPassword(
+        string toEmail,
+        string fullName,
+        string resetLink,
+        DateTime expiresAtUtc,
+        IOptions<EmailOptions> options)
+    {
+        var templateAlias = options.Value.Resend.Templates.ForgotPassword;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("ForgotPassword template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = toEmail,
+            Subject = "Reset your password",
+            TemplateAlias = templateAlias,
+            ExpiresAtUtc = expiresAtUtc,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["fullName"] = fullName.Split(' ')[0],
+                ["resetLink"] = resetLink,
+                ["year"] = expiresAtUtc.Year
             }
         };
     }

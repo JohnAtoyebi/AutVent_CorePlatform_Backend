@@ -20,9 +20,19 @@ public class AuthenticationController(IAuthenticationService authenticationServi
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var response = await authenticationService.ForgotPasswordAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpPost("reset-password")]
     [ProducesResponseType(typeof(ApiResponse<ResetPasswordResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<ResetPasswordResponse>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<ResetPasswordResponse>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<ResetPasswordResponse>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
     {

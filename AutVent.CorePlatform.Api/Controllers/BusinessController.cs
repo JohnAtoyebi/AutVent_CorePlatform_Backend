@@ -12,6 +12,7 @@ public class BusinessController(IBusinessService businessService) : ApiControlle
 {
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateBusinessRequest request, CancellationToken cancellationToken)
@@ -20,20 +21,12 @@ public class BusinessController(IBusinessService businessService) : ApiControlle
         return StatusCode(response.StatusCode, response);
     }
 
-    [HttpGet("{id:long}")]
+    [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(long id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMine(CancellationToken cancellationToken)
     {
-        var response = await businessService.GetByIdAsync(id, cancellationToken);
-        return StatusCode(response.StatusCode, response);
-    }
-
-    [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<PagedResponse<CreateBusinessResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
-    {
-        var response = await businessService.GetAllAsync(request, cancellationToken);
+        var response = await businessService.GetByUserIdAsync(CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 }
