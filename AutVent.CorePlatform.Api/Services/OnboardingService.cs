@@ -112,7 +112,7 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
 
         var otp = await unitOfWork.Query<Otp>()
             .Where(x => x.EmailAddress.ToLower() == normalizedEmail && x.Code == request.Code)
-            .OrderByDescending(x => x.DateCreated)
+            .OrderByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (otp is null)
