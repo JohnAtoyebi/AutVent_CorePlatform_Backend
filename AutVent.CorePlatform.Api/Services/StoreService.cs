@@ -76,9 +76,10 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         return ApiResponse<CreateStoreResponse>.Created(MapToResponse(store, storeCategory.Name), "Store created successfully");
     }
 
-    public async Task<ApiResponse<CreateStoreResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<CreateStoreResponse>> GetByIdAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
             .Include(x => x.StoreCategory)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -90,16 +91,26 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(id))]);
         }
 
+        if (store.Business.UserId != userId)
+        {
+            return ApiResponse<CreateStoreResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this store",
+                [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(id))]);
+        }
+
         return ApiResponse<CreateStoreResponse>.Ok(MapToResponse(store, store.StoreCategory.Name));
     }
 
-    public async Task<ApiResponse<PagedResponse<CreateStoreResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<CreateStoreResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var pageNumber = Math.Max(1, request.PageNumber);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
         var query = unitOfWork.Query<Store>()
+            .Include(x => x.Business)
             .Include(x => x.StoreCategory)
+            .Where(x => x.Business.UserId == userId)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -134,7 +145,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new CreateStoreResponse

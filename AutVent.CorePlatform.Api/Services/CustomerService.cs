@@ -143,7 +143,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderBy(x => x.FullName)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => MapToResponse(x))

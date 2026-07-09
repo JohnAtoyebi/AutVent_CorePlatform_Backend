@@ -351,7 +351,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderByDescending(x => x.DateCreated)
+            .OrderByDescending(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => MapToResponse(x, x.Customer))

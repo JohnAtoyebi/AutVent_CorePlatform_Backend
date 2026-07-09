@@ -32,7 +32,7 @@ public sealed class BusinessIndustryService(IUnitOfWork unitOfWork) : IBusinessI
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new CategoryResponse

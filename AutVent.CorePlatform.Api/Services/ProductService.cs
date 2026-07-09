@@ -54,14 +54,14 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Select(x => new
             {
                 Name = x.Name.Trim(),
-                Price = x.Price.Trim(),
+                Price = NormalizePriceString(x.Price),
                 Quantity = x.Quantity,
                 ProductCategoryId = x.ProductCategoryId,
                 Description = NormalizeNullableString(x.Description),
                 Sku = NormalizeNullableString(x.Sku),
                 Barcode = NormalizeNullableString(x.Barcode),
-                CostPrice = NormalizeNullableString(x.CostPrice),
-                CompareAtPrice = NormalizeNullableString(x.CompareAtPrice),
+                CostPrice = NormalizeNullablePriceString(x.CostPrice),
+                CompareAtPrice = NormalizeNullablePriceString(x.CompareAtPrice),
                 ProductImages = NormalizeStringList(x.ProductImages),
                 ProductVariantsEnabled = x.ProductVariantsEnabled,
                 ProductVariants = NormalizeVariants(x.ProductVariants),
@@ -394,7 +394,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Select(x => new
             {
                 Name = x.Name.Trim(),
-                Price = x.Price.Trim(),
+                Price = NormalizePriceString(x.Price),
                 Quantity = x.Quantity
             })
             .ToList();
@@ -532,6 +532,23 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         if (request.Filters is not null)
         {
+            if (request.Filters.TryGetValue("storeId", out var storeIdFilter) && long.TryParse(storeIdFilter, out var filterStoreId))
+            {
+                var storeExists = await unitOfWork.Query<Store>()
+                    .Include(x => x.Business)
+                    .AnyAsync(x => x.Id == filterStoreId && x.Business.UserId == userId, cancellationToken);
+
+                if (!storeExists)
+                {
+                    return ApiResponse<PagedResponse<ProductResponse>>.Failed(
+                        StatusCodes.Status403Forbidden,
+                        "You do not have access to this store",
+                        [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(filterStoreId))]);
+                }
+
+                query = query.Where(x => x.StoreId == filterStoreId);
+            }
+
             // Filter by category name or category ID
             if (request.Filters.TryGetValue("productCategory", out var categoryFilter) && !string.IsNullOrWhiteSpace(categoryFilter))
             {
@@ -563,7 +580,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var records = await query
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -597,7 +614,21 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             prefix = "PRD";
         }
 
-        return $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..24];
+        var suffix = Guid.NewGuid().ToString("N").ToUpperInvariant();
+        return $"{prefix}{suffix}"[..10];
+    }
+
+    private static string NormalizePriceString(string value)
+        => value.Replace(",", string.Empty).Trim();
+
+    private static string? NormalizeNullablePriceString(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return NormalizePriceString(value);
     }
 
     private static string? NormalizeNullableString(string? value)
@@ -631,7 +662,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             {
                 Variant = NormalizeNullableString(v.Variant),
                 Sku = NormalizeNullableString(v.Sku),
-                Price = NormalizeNullableString(v.Price),
+                Price = NormalizeNullablePriceString(v.Price),
                 Quantity = v.Quantity
             })
             .Where(v => v.Variant is not null || v.Sku is not null || v.Price is not null || v.Quantity.HasValue)
@@ -754,7 +785,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         }
 
         var normalizedName = request.Name.Trim();
-        var normalizedPrice = request.Price.Trim();
+        var normalizedPrice = NormalizePriceString(request.Price);
 
         var category = await unitOfWork.Query<ProductCategory>()
             .FirstOrDefaultAsync(x => x.Id == request.ProductCategoryId, cancellationToken);
@@ -789,8 +820,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var normalizedSku = NormalizeNullableString(request.Sku);
         var normalizedDescription = NormalizeNullableString(request.Description);
         var normalizedBarcode = NormalizeNullableString(request.Barcode);
-        var normalizedCostPrice = NormalizeNullableString(request.CostPrice);
-        var normalizedCompareAtPrice = NormalizeNullableString(request.CompareAtPrice);
+        var normalizedCostPrice = NormalizeNullablePriceString(request.CostPrice);
+        var normalizedCompareAtPrice = NormalizeNullablePriceString(request.CompareAtPrice);
         var normalizedSupplier = NormalizeNullableString(request.Supplier);
         var normalizedImages = NormalizeStringList(request.ProductImages);
         var normalizedVariants = NormalizeVariants(request.ProductVariants);
