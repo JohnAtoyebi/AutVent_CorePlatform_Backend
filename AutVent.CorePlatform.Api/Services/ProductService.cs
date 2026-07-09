@@ -532,6 +532,23 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         if (request.Filters is not null)
         {
+            if (request.Filters.TryGetValue("storeId", out var storeIdFilter) && long.TryParse(storeIdFilter, out var filterStoreId))
+            {
+                var storeExists = await unitOfWork.Query<Store>()
+                    .Include(x => x.Business)
+                    .AnyAsync(x => x.Id == filterStoreId && x.Business.UserId == userId, cancellationToken);
+
+                if (!storeExists)
+                {
+                    return ApiResponse<PagedResponse<ProductResponse>>.Failed(
+                        StatusCodes.Status403Forbidden,
+                        "You do not have access to this store",
+                        [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(filterStoreId))]);
+                }
+
+                query = query.Where(x => x.StoreId == filterStoreId);
+            }
+
             // Filter by category name or category ID
             if (request.Filters.TryGetValue("productCategory", out var categoryFilter) && !string.IsNullOrWhiteSpace(categoryFilter))
             {

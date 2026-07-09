@@ -17,6 +17,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<ReferralRecord> ReferralRecords => Set<ReferralRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -169,6 +170,22 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         });
 
         ConfigureBaseEntityProperties(modelBuilder);
+
+        modelBuilder.Entity<ReferralRecord>(entity =>
+        {
+            entity.Property(x => x.ReferralCode).HasMaxLength(50).IsRequired();
+            entity.HasIndex(x => new { x.ReferrerId, x.ReferredUserId }).IsUnique();
+
+            entity.HasOne(x => x.Referrer)
+                .WithMany()
+                .HasForeignKey(x => x.ReferrerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.ReferredUser)
+                .WithMany()
+                .HasForeignKey(x => x.ReferredUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         base.OnModelCreating(modelBuilder);
     }
