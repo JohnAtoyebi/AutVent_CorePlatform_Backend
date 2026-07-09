@@ -40,6 +40,7 @@ public sealed class ProductCategorySeeder(IUnitOfWork unitOfWork)
         "Fashion & Apparel",
         "Beauty & Cosmetics",
         "Food & Beverages",
-        "Groceries"
+        "Groceries",
+        "Health"
     ];
 }

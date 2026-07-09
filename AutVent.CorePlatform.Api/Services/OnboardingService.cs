@@ -58,6 +58,13 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
         var utcNow = DateTime.UtcNow;
         var referralCode = await GenerateUniqueReferralCodeAsync(cancellationToken);
 
+        User? referrer = null;
+        if (!string.IsNullOrWhiteSpace(request.ReferralCode))
+        {
+            referrer = await unitOfWork.Query<User>()
+                .FirstOrDefaultAsync(x => x.ReferralCode == request.ReferralCode.Trim(), cancellationToken);
+        }
+
         var user = new User
         {
             FullName = request.FullName.Trim(),
@@ -71,6 +78,20 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
         };
 
         await unitOfWork.CreateAsync(user, cancellationToken);
+
+        if (referrer is not null)
+        {
+            var referralRecord = new ReferralRecord
+            {
+                ReferrerId = referrer.Id,
+                ReferredUser = user,
+                ReferralCode = referrer.ReferralCode!,
+                IsActive = true,
+                CreatedBy = SystemActor,
+                DateCreated = utcNow
+            };
+            await unitOfWork.CreateAsync(referralRecord, cancellationToken);
+        }
 
         var otp = await CreateAndTrackOtpAsync(normalizedEmail, cancellationToken);
 
