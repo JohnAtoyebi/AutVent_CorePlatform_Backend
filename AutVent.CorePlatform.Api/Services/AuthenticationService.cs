@@ -61,12 +61,31 @@ public sealed class AuthenticationService(
         var business = await unitOfWork.Query<Business>()
             .FirstOrDefaultAsync(x => x.UserId == user.Id, cancellationToken);
 
+        var (rawRefreshToken, refreshExpiresAt) = jwtTokenService.GenerateRefreshToken();
+
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = rawRefreshToken,
+            DateExpired = refreshExpiresAt,
+            IsUsed = false,
+            IsRevoked = false,
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = DateTime.UtcNow
+        };
+
+        await unitOfWork.CreateAsync(refreshToken, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
         var response = new SignInResponse
         {
             UserId = user.Id,
             FullName = user.FullName,
             EmailAddress = user.EmailAddress,
             AccessToken = GenerateAccessToken(user),
+            RefreshToken = rawRefreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt,
             IsBusinessCreated = business == null ? false : true
         };
 
@@ -207,6 +226,63 @@ public sealed class AuthenticationService(
         };
 
         return ApiResponse<ResetPasswordResponse>.Ok(response, "Password reset successful");
+    }
+
+    public async Task<ApiResponse<RefreshTokenResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        var storedToken = await unitOfWork.Query<RefreshToken>()
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.Token == request.RefreshToken, cancellationToken);
+
+        if (storedToken is null)
+        {
+            return ApiResponse<RefreshTokenResponse>.Failed(
+                StatusCodes.Status401Unauthorized,
+                "Invalid refresh token",
+                [new ApiError("InvalidRefreshToken", "The refresh token is invalid", nameof(request.RefreshToken))]);
+        }
+
+        if (storedToken.IsUsed || storedToken.IsRevoked || storedToken.DateExpired <= now)
+        {
+            return ApiResponse<RefreshTokenResponse>.Failed(
+                StatusCodes.Status401Unauthorized,
+                "Refresh token has expired or already been used",
+                [new ApiError("ExpiredRefreshToken", "Please sign in again", nameof(request.RefreshToken))]);
+        }
+
+        storedToken.IsUsed = true;
+        storedToken.IsActive = false;
+        storedToken.DateUpdated = now;
+        storedToken.UpdatedBy = SystemActor;
+        unitOfWork.Update(storedToken);
+
+        var (rawRefreshToken, refreshExpiresAt) = jwtTokenService.GenerateRefreshToken();
+
+        var newRefreshToken = new RefreshToken
+        {
+            UserId = storedToken.UserId,
+            Token = rawRefreshToken,
+            DateExpired = refreshExpiresAt,
+            IsUsed = false,
+            IsRevoked = false,
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = now
+        };
+
+        await unitOfWork.CreateAsync(newRefreshToken, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var response = new RefreshTokenResponse
+        {
+            AccessToken = GenerateAccessToken(storedToken.User),
+            RefreshToken = rawRefreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt
+        };
+
+        return ApiResponse<RefreshTokenResponse>.Ok(response, "Token refreshed successfully");
     }
 
     private string GenerateAccessToken(User user) => jwtTokenService.GenerateAccessToken(user);

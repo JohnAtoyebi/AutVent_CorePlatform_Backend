@@ -9,4 +9,5 @@ public interface IAuthenticationService
     Task<ApiResponse<ForgotPasswordResponse>> SendResetLinkAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ForgotPasswordResponse>> ResendResetLinkAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResetPasswordResponse>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<RefreshTokenResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default);
 }

@@ -47,4 +47,13 @@ public class AuthenticationController(IAuthenticationService authenticationServi
         var response = await authenticationService.ResetPasswordAsync(request, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(ApiResponse<RefreshTokenResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<RefreshTokenResponse>), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var response = await authenticationService.RefreshTokenAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }
