@@ -209,7 +209,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ProductCategoryId = x.ProductCategoryId,
                 ProductCategory = categoryMap[x.ProductCategoryId],
                 Description = x.Description,
-                Sku = x.Sku ?? GenerateSku(x.Name),
+                Sku = x.Sku ?? GenerateSkuInternal(x.Name),
                 Barcode = x.Barcode,
                 CostPrice = x.CostPrice,
                 CompareAtPrice = x.CompareAtPrice,
@@ -458,7 +458,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                     StoreId = storeId,
                     ProductCategoryId = matchedCategory.Id,
                     ProductCategory = matchedCategory,
-                    Sku = GenerateSku(x.Name),
+                    Sku = GenerateSkuInternal(x.Name),
                     IsActive = true,
                     AvailableOnPos = true,
                     AvailableOnAutShop = true,
@@ -615,7 +615,13 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<PagedResponse<ProductResponse>>.Ok(paged);
     }
 
-    private static string GenerateSku(string productName)
+    public ApiResponse<GenerateSkuResponse> GenerateSku(string productName)
+    {
+        var sku = GenerateSkuInternal(productName.Trim());
+        return ApiResponse<GenerateSkuResponse>.Ok(new GenerateSkuResponse { Sku = sku });
+    }
+
+    private static string GenerateSkuInternal(string productName)
     {
         var prefix = new string(productName
             .Where(char.IsLetterOrDigit)
@@ -625,15 +631,33 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            prefix = "PRD";
+            prefix = "AUT";
         }
 
-        var suffix = Guid.NewGuid().ToString("N").ToUpperInvariant();
-        return $"{prefix}{suffix}"[..10];
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+        var mid = new string(Enumerable.Range(0, 4).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+        var end = new string(Enumerable.Range(0, 3).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+
+        return $"{prefix}-{mid}-{end}";
     }
 
     private static string NormalizePriceString(string value)
         => value.Replace(",", string.Empty).Trim();
+
+    private static decimal? CalculateProfitMargin(string price, string? costPrice)
+    {
+        if (string.IsNullOrWhiteSpace(costPrice))
+            return null;
+
+        if (!decimal.TryParse(NormalizePriceString(price), out var sellingPrice) || sellingPrice <= 0)
+            return null;
+
+        if (!decimal.TryParse(NormalizePriceString(costPrice), out var cost))
+            return null;
+
+        return Math.Round((sellingPrice - cost) / sellingPrice * 100, 2);
+    }
 
     private static string? NormalizeNullablePriceString(string? value)
     {
@@ -720,7 +744,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         ApplyToAllStoreLocations = product.ApplyToAllStoreLocations,
         Tags = DeserializeStringList(product.TagsJson),
         Weight = product.Weight,
-        Supplier = product.Supplier
+        Supplier = product.Supplier,
+        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice)
     };
 
     public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> UpdateAsync(long id, CreateProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
@@ -855,7 +880,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             if (request.Description is not null)
                 targetProduct.Description = normalizedDescription;
 
-            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSku(normalizedName);
+            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSkuInternal(normalizedName);
 
             if (request.Barcode is not null)
                 targetProduct.Barcode = normalizedBarcode;

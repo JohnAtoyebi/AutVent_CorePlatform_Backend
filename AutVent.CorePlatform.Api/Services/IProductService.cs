@@ -12,4 +12,5 @@ public interface IProductService
     Task<ApiResponse<PagedResponse<ProductResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DeleteAsync(long id, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> UpdateStatusAsync(long id, bool isActive, long userId, CancellationToken cancellationToken = default);
+    ApiResponse<GenerateSkuResponse> GenerateSku(string productName);
 }

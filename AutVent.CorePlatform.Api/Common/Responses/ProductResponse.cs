@@ -32,4 +32,5 @@ public sealed class ProductResponse
     public List<string>? Tags { get; init; }
     public decimal? Weight { get; init; }
     public string? Supplier { get; init; }
+    public decimal? ProfitMargin { get; init; }
 }
