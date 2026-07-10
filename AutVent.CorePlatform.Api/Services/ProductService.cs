@@ -2,6 +2,7 @@ using System.Text.Json;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -579,8 +580,21 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var totalCount = await query.CountAsync(cancellationToken);
 
+        var sortBy = Enum.TryParse<ProductSortBy>(request.SortBy, true, out var parsedSort)
+            ? parsedSort
+            : ProductSortBy.Newest;
+
+        query = sortBy switch
+        {
+            ProductSortBy.Oldest      => query.OrderBy(x => x.Id),
+            ProductSortBy.NameAsc     => query.OrderBy(x => x.Name),
+            ProductSortBy.NameDesc    => query.OrderByDescending(x => x.Name),
+            ProductSortBy.QuantityAsc => query.OrderBy(x => x.Quantity),
+            ProductSortBy.QuantityDesc => query.OrderByDescending(x => x.Quantity),
+            _                         => query.OrderByDescending(x => x.Id)
+        };
+
         var records = await query
-            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
