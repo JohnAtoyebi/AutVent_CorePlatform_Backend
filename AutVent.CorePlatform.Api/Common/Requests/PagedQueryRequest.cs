@@ -13,4 +13,6 @@ public sealed class PagedQueryRequest
     public string? Search { get; init; }
 
     public Dictionary<string, string>? Filters { get; init; }
+
+    public string? SortBy { get; init; }
 }

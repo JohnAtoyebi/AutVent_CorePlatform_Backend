@@ -78,6 +78,22 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
                 [new ApiError("CustomerRequired", "Part payment must be tied to an existing customer", nameof(request.CustomerId))]);
         }
 
+        if (isPartPayment && !request.BalanceDueDate.HasValue)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Balance due date is required for part payment",
+                [new ApiError("BalanceDueDateRequired", "A balance due date must be provided for part payment sales", nameof(request.BalanceDueDate))]);
+        }
+
+        if (isPartPayment && request.BalanceDueDate.HasValue && request.BalanceDueDate.Value.ToUniversalTime() <= DateTime.UtcNow)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Balance due date must be in the future",
+                [new ApiError("InvalidBalanceDueDate", "Balance due date must be a future date", nameof(request.BalanceDueDate))]);
+        }
+
         // Validate customer if provided
         Customer? customer = null;
         if (request.CustomerId.HasValue)
@@ -204,6 +220,14 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
 
             balanceRemaining = totalAmount - request.AmountPaid;
             changeAmount = 0;
+
+            if (request.ExpectedBalanceRemaining.HasValue && request.ExpectedBalanceRemaining.Value != balanceRemaining)
+            {
+                return ApiResponse<SaleResponse>.Failed(
+                    StatusCodes.Status400BadRequest,
+                    "Balance remaining mismatch",
+                    [new ApiError("BalanceRemainingMismatch", $"Expected balance remaining of {request.ExpectedBalanceRemaining.Value:F2} does not match the calculated balance of {balanceRemaining:F2}", nameof(request.ExpectedBalanceRemaining))]);
+            }
         }
         else
         {
@@ -233,6 +257,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             TotalAmount = totalAmount,
             AmountPaid = request.AmountPaid,
             BalanceRemaining = balanceRemaining,
+            BalanceDueDate = isPartPayment ? request.BalanceDueDate!.Value.ToUniversalTime() : null,
             ChangeAmount = changeAmount,
             PaymentMethod = request.PaymentMethod,
             Status = saleStatus,
@@ -435,6 +460,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             TotalAmount = sale.TotalAmount,
             AmountPaid = sale.AmountPaid,
             BalanceRemaining = sale.BalanceRemaining,
+            BalanceDueDate = sale.BalanceDueDate,
             ChangeAmount = sale.ChangeAmount,
             PaymentMethod = sale.PaymentMethod,
             Status = sale.Status,
