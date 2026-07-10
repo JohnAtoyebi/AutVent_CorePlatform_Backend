@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Domain.Entities;
@@ -36,5 +37,15 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public (string Token, DateTime ExpiresAt) GenerateRefreshToken()
+    {
+        var jwt = configuration.GetSection("Jwt").Get<JwtOptions>()
+            ?? throw new InvalidOperationException("JWT settings are missing.");
+
+        var expiryDays = jwt.RefreshTokenExpiryDays <= 0 ? 7 : jwt.RefreshTokenExpiryDays;
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        return (token, DateTime.UtcNow.AddDays(expiryDays));
     }
 }
