@@ -20,4 +20,5 @@ public sealed class ResendTemplates
     public string OtpVerification { get; init; } = string.Empty;
     public string PasswordReset { get; init; } = string.Empty;
     public string ForgotPassword { get; init; } = string.Empty;
+    public string BusinessWelcome { get; init; } = string.Empty;
 }

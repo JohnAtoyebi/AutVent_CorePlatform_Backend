@@ -7,7 +7,7 @@ namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/[controller]")]
 [Authorize]
-public class UsersController(IUserService userService) : ApiControllerBase
+public class UserController(IUserService userService) : ApiControllerBase
 {
     [HttpGet("me")]
     [ProducesResponseType(typeof(ApiResponse<UserProfileResponse>), StatusCodes.Status200OK)]

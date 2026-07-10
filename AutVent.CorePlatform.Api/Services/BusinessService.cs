@@ -1,12 +1,15 @@
+using AutVent.CorePlatform.Api.Common.Email;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
+using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
+public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions) : IBusinessService
 {
     private const string SystemActor = "system";
 
@@ -80,6 +83,10 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
 
         await unitOfWork.CreateAsync(business, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await emailProvider.SendAsync(
+            EmailTemplates.BusinessWelcome(user.EmailAddress, user.FullName, businessName, emailOptions),
+            cancellationToken);
 
         var response = MapToResponse(business, industry.Name, staffRange.Name);
         return ApiResponse<CreateBusinessResponse>.Created(response, "Business created successfully");

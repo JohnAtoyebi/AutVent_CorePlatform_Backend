@@ -64,6 +64,33 @@ public static class EmailTemplates
         };
     }
 
+    public static EmailMessage BusinessWelcome(
+        string toEmail,
+        string fullName,
+        string businessName,
+        IOptions<EmailOptions> options)
+    {
+        var templateAlias = options.Value.Resend.Templates.BusinessWelcome;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("BusinessWelcome template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = toEmail,
+            Subject = "Welcome to AutVent!",
+            TemplateAlias = templateAlias,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["fullName"] = fullName.Split(' ')[0],
+                ["businessName"] = businessName,
+                ["year"] = DateTime.UtcNow.Year
+            }
+        };
+    }
+
     public static EmailMessage ForgotPassword(
         string toEmail,
         string fullName,
