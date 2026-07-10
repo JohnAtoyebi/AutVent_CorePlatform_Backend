@@ -104,6 +104,8 @@ builder.Services.AddSwaggerGen(options =>
             []
         }
     });
+
+    options.OperationFilter<AnonymousOperationFilter>();
 });
 
 var app = builder.Build();

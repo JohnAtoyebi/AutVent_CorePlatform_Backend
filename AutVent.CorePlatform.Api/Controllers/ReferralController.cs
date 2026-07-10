@@ -1,11 +1,13 @@
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[AllowAnonymous]
 public class ReferralController(IReferralService referralService) : ControllerBase
 {
     [HttpGet("validate")]

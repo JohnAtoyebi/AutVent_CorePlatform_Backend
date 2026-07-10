@@ -1,12 +1,14 @@
 ﻿using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutVent.CorePlatform.Api.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[AllowAnonymous]
 public class OnboardingController : ControllerBase
 {
     private readonly IOnboardingService onboardingService;
