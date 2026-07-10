@@ -14,8 +14,9 @@ public static class DependencyInjection
         services.AddHttpClient(nameof(ResendEmailProvider));
         services.AddTransient<ResendEmailProvider>();
         services.AddScoped<IEmailProvider, EmailProviderFactory>();
-
+        services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IOnboardingService, OnboardingService>();
+        services.AddScoped<IReferralService, ReferralService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IBusinessService, BusinessService>();
         services.AddScoped<IStoreService, StoreService>();

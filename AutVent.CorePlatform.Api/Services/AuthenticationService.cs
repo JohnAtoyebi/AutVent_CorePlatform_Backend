@@ -21,7 +21,8 @@ public sealed class AuthenticationService(
     IConfiguration configuration,
     IEmailProvider emailProvider,
     IOptions<EmailOptions> emailOptions,
-    IOptions<AppOptions> appOptions) : IAuthenticationService
+    IOptions<AppOptions> appOptions,
+    IJwtTokenService jwtTokenService) : IAuthenticationService
 {
     private const string SystemActor = "system";
 
@@ -72,7 +73,7 @@ public sealed class AuthenticationService(
         return ApiResponse<SignInResponse>.Ok(response, "Sign in successful");
     }
 
-    public async Task<ApiResponse<ForgotPasswordResponse>> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ForgotPasswordResponse>> SendResetLinkAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.EmailAddress.Trim().ToLowerInvariant();
         var now = DateTime.UtcNow;
@@ -87,20 +88,11 @@ public sealed class AuthenticationService(
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
-        if (user is null)
-        {
-            return ApiResponse<ForgotPasswordResponse>.Failed(
-                StatusCodes.Status404NotFound,
-                "User not found",
-                [new ApiError("UserNotFound", "No user found for this email", nameof(request.EmailAddress))]);
-        }
+        var silentResponse = new ForgotPasswordResponse { EmailAddress = normalizedEmail };
 
-        if (!user.IsActive)
+        if (user is null || !user.IsActive)
         {
-            return ApiResponse<ForgotPasswordResponse>.Failed(
-                StatusCodes.Status403Forbidden,
-                "Email is not verified",
-                [new ApiError("EmailNotVerified", "Verify your email before resetting password", nameof(request.EmailAddress))]);
+            return ApiResponse<ForgotPasswordResponse>.Ok(silentResponse, "If that email is registered, a reset link has been sent");
         }
 
         var activeTokens = await unitOfWork.Query<PasswordResetToken>()
@@ -145,8 +137,11 @@ public sealed class AuthenticationService(
             TokenExpiresAtUtc = expiresAt
         };
 
-        return ApiResponse<ForgotPasswordResponse>.Ok(response, "Password reset link has been sent to your email");
+        return ApiResponse<ForgotPasswordResponse>.Ok(response, "If that email is registered, a reset link has been sent");
     }
+
+    public Task<ApiResponse<ForgotPasswordResponse>> ResendResetLinkAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+        => SendResetLinkAsync(request, cancellationToken);
 
     public async Task<ApiResponse<ResetPasswordResponse>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
@@ -214,34 +209,5 @@ public sealed class AuthenticationService(
         return ApiResponse<ResetPasswordResponse>.Ok(response, "Password reset successful");
     }
 
-    private string GenerateAccessToken(User user)
-    {
-        var jwt = configuration.GetSection("Jwt").Get<JwtOptions>()
-            ?? throw new InvalidOperationException("JWT settings are missing.");
-
-        if (string.IsNullOrWhiteSpace(jwt.Key) || string.IsNullOrWhiteSpace(jwt.Issuer) || string.IsNullOrWhiteSpace(jwt.Audience))
-        {
-            throw new InvalidOperationException("JWT settings are invalid.");
-        }
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.EmailAddress),
-            new(JwtRegisteredClaimNames.Name, user.FullName),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        var token = new JwtSecurityToken(
-            issuer: jwt.Issuer,
-            audience: jwt.Audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(jwt.ExpiryMinutes <= 0 ? 60 : jwt.ExpiryMinutes),
-            signingCredentials: credentials);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
+    private string GenerateAccessToken(User user) => jwtTokenService.GenerateAccessToken(user);
 }

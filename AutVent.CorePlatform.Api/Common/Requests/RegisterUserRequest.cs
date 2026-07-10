@@ -21,7 +21,7 @@ public sealed class RegisterUserRequest
     [Required]
     [MinLength(8)]
     [MaxLength(100)]
-    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$", ErrorMessage = "Password must contain uppercase, lowercase, and a number")]
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).+$", ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character")]
     public string Password { get; init; } = string.Empty;
 
     [Required]

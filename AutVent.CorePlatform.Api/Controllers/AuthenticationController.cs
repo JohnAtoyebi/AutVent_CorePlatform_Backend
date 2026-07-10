@@ -20,13 +20,19 @@ public class AuthenticationController(IAuthenticationService authenticationServi
         return StatusCode(response.StatusCode, response);
     }
 
-    [HttpPost("forgot-password")]
+    [HttpPost("send-reset-link")]
     [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> SendResetLink([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
-        var response = await authenticationService.ForgotPasswordAsync(request, cancellationToken);
+        var response = await authenticationService.SendResetLinkAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPost("resend-reset-link")]
+    [ProducesResponseType(typeof(ApiResponse<ForgotPasswordResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ResendResetLink([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var response = await authenticationService.ResendResetLinkAsync(request, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
