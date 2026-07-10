@@ -162,7 +162,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .ToHashSet();
 
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId))
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId) && !x.IsDeleted)
             .Select(x => new { x.Name, x.StoreId })
             .ToListAsync(cancellationToken);
 
@@ -433,7 +433,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         // Check if products already exist in store
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId)
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId && !x.IsDeleted)
             .Select(x => x.Name)
             .ToListAsync(cancellationToken);
 
@@ -490,7 +490,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -520,7 +520,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .Where(x => x.Store.Business.UserId == userId)
+            .Where(x => x.Store.Business.UserId == userId && !x.IsDeleted)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -729,7 +729,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -775,11 +775,12 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 .Where(x =>
                     x.Store.BusinessId == product.Store.BusinessId &&
                     targetStoreIds.Contains(x.StoreId) &&
-                    x.Name.ToLower() == product.Name.ToLower())
+                    x.Name.ToLower() == product.Name.ToLower() &&
+                    !x.IsDeleted)
                 .ToListAsync(cancellationToken)
             : await unitOfWork.Query<Product>()
                 .Include(x => x.ProductCategory)
-                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId))
+                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId) && !x.IsDeleted)
                 .ToListAsync(cancellationToken);
 
         if (targetProducts.Count == 0)
@@ -819,7 +820,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Where(x =>
                 targetStoreIdSet.Contains(x.StoreId) &&
                 x.Name.ToLower() == normalizedName.ToLower() &&
-                !targetProductIds.Contains(x.Id))
+                !targetProductIds.Contains(x.Id) &&
+                !x.IsDeleted)
             .Select(x => new { x.StoreId, x.Name })
             .ToListAsync(cancellationToken);
 
@@ -941,6 +943,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var now = DateTime.UtcNow;
         product.IsActive = false;
+        product.IsDeleted = true;
         product.DateDeleted = now;
         product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
@@ -956,7 +959,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var product = await unitOfWork.Query<Product>()
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -982,7 +985,6 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var now = DateTime.UtcNow;
         product.IsActive = isActive;
-        product.DateDeleted = isActive ? null : now;
         product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
 
