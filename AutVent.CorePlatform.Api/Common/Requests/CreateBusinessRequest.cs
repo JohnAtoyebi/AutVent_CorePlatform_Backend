@@ -12,6 +12,5 @@ public sealed class CreateBusinessRequest
     public int IndustryId { get; init; }
 
     [Required]
-    [MaxLength(50)]
-    public string StaffRange { get; init; } = string.Empty;
+    public int StaffRangeId { get; init; }
 }

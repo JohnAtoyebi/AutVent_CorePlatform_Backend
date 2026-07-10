@@ -9,6 +9,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Otp> Otps => Set<Otp>();
     public DbSet<Business> Businesses => Set<Business>();
     public DbSet<BusinessIndustry> BusinessIndustries => Set<BusinessIndustry>();
+    public DbSet<StaffRange> StaffRanges => Set<StaffRange>();
     public DbSet<Store> Stores => Set<Store>();
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
@@ -43,7 +44,6 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         modelBuilder.Entity<Business>(entity =>
         {
             entity.Property(x => x.BusinessName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.StaffRange).HasMaxLength(50).IsRequired();
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -54,6 +54,17 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.BusinessIndustryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.StaffRange)
+                .WithMany(x => x.Businesses)
+                .HasForeignKey(x => x.StaffRangeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StaffRange>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(50).IsRequired();
+            entity.HasIndex(x => x.Name).IsUnique();
         });
 
         modelBuilder.Entity<BusinessIndustry>(entity =>

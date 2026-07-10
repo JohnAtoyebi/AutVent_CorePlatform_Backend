@@ -120,6 +120,9 @@ using (var scope = app.Services.CreateScope())
 
     var productCategorySeeder = scope.ServiceProvider.GetRequiredService<ProductCategorySeeder>();
     await productCategorySeeder.SeedAsync();
+
+    var staffRangeSeeder = scope.ServiceProvider.GetRequiredService<StaffRangeSeeder>();
+    await staffRangeSeeder.SeedAsync();
 }
 
 if (app.Environment.IsDevelopment())
