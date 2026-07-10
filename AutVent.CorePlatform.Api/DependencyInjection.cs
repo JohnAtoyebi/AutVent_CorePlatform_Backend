@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailProvider, EmailProviderFactory>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IOnboardingService, OnboardingService>();
+        services.AddScoped<IOnboardingProgressService, OnboardingProgressService>();
         services.AddScoped<IReferralService, ReferralService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IUserService, UserService>();
