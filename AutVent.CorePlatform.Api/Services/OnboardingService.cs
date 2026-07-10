@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions) : IOnboardingService
+public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IJwtTokenService jwtTokenService) : IOnboardingService
 {
     private const string SystemActor = "system";
 
@@ -171,10 +171,13 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var accessToken = jwtTokenService.GenerateAccessToken(user);
+
         var response = new VerifyOtpResponse
         {
             EmailAddress = normalizedEmail,
-            IsVerified = true
+            IsVerified = true,
+            AccessToken = accessToken
         };
 
         return ApiResponse<VerifyOtpResponse>.Ok(response, "Email verified successfully");
