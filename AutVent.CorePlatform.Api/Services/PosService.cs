@@ -126,6 +126,20 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
                 invalidQuantities);
         }
 
+        // Validate sufficient stock
+        var insufficientStock = request.Items
+            .Where(x => productMap[x.ProductId].Quantity < x.Quantity)
+            .Select(x => new ApiError("InsufficientStock", $"Insufficient stock for product '{productMap[x.ProductId].Name}'. Available: {productMap[x.ProductId].Quantity}", nameof(CreateSaleItemRequest.Quantity)))
+            .ToList();
+
+        if (insufficientStock.Count > 0)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status409Conflict,
+                "One or more products have insufficient stock",
+                insufficientStock);
+        }
+
         var now = DateTime.UtcNow;
         var saleNumber = GenerateSaleNumber();
         decimal subTotal = 0;
@@ -230,6 +244,12 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
         };
 
         await unitOfWork.CreateAsync(sale, cancellationToken);
+
+        foreach (var item in request.Items)
+        {
+            productMap[item.ProductId].Quantity -= item.Quantity;
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var createdSale = await unitOfWork.Query<Sale>()
