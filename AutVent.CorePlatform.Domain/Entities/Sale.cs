@@ -17,6 +17,7 @@ public class Sale : BaseEntity
     public decimal TotalAmount { get; set; }
     public decimal AmountPaid { get; set; }
     public decimal BalanceRemaining { get; set; }
+    public DateTime? BalanceDueDate { get; set; }
     public decimal ChangeAmount { get; set; }
     public SalePaymentMethod PaymentMethod { get; set; }
     public SaleStatus Status { get; set; }

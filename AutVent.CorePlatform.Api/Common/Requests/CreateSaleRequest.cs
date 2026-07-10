@@ -39,6 +39,10 @@ public sealed class CreateSaleRequest
     [MaxLength(500)]
     public string? Notes { get; init; }
 
+    public DateTime? BalanceDueDate { get; init; }
+
+    public decimal? ExpectedBalanceRemaining { get; init; }
+
     [Required]
     public List<CreateSaleItemRequest> Items { get; init; } = [];
 }

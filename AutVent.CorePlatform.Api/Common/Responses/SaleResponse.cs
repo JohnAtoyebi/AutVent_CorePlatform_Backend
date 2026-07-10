@@ -27,6 +27,7 @@ public sealed class SaleResponse
     public decimal TotalAmount { get; init; }
     public decimal AmountPaid { get; init; }
     public decimal BalanceRemaining { get; init; }
+    public DateTime? BalanceDueDate { get; init; }
     public decimal ChangeAmount { get; init; }
     public SalePaymentMethod PaymentMethod { get; init; }
     public SaleStatus Status { get; init; }
