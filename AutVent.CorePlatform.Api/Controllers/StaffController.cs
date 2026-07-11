@@ -58,6 +58,15 @@ public class StaffController(IStaffService staffService) : ApiControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpPatch("{id:long}/status")]
+    [ProducesResponseType(typeof(ApiResponse<StaffResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<StaffResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateStatus(long id, [FromQuery] bool isActive, CancellationToken cancellationToken)
+    {
+        var response = await staffService.UpdateStatusAsync(id, isActive, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpDelete("{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]

@@ -369,6 +369,36 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
         return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!), "Staff role updated successfully");
     }
 
+    public async Task<ApiResponse<StaffResponse>> UpdateStatusAsync(long id, bool isActive, long userId, CancellationToken cancellationToken = default)
+    {
+        var staff = await LoadStaffWithIncludes(id, cancellationToken);
+
+        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        {
+            return ApiResponse<StaffResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Staff member not found",
+                [new ApiError("StaffNotFound", "No staff member found for this id", nameof(id))]);
+        }
+
+        if (staff.IsActive == isActive)
+        {
+            return ApiResponse<StaffResponse>.Ok(MapToResponse(staff),
+                $"Staff member is already {(isActive ? "active" : "inactive")}");
+        }
+
+        staff.IsActive = isActive;
+        staff.DateUpdated = DateTime.UtcNow;
+        staff.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(staff);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var updated = await LoadStaffWithIncludes(staff.Id, cancellationToken);
+        return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!),
+            $"Staff member {(isActive ? "activated" : "deactivated")} successfully");
+    }
+
     public async Task<ApiResponse<bool>> DeleteAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var staff = await unitOfWork.Query<Staff>()
