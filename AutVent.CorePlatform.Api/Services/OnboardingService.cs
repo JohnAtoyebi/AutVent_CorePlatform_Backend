@@ -159,6 +159,7 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
         }
 
         user.IsActive = true;
+        user.IsEmailVerified = true;
         user.DateUpdated = now;
         user.UpdatedBy = SystemActor;
 
