@@ -20,6 +20,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReferralRecord> ReferralRecords => Set<ReferralRecord>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
     public DbSet<Role> Roles => Set<Role>();
@@ -27,6 +28,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<Staff> Staff => Set<Staff>();
     public DbSet<StaffStoreAccess> StaffStoreAccess => Set<StaffStoreAccess>();
+    public DbSet<SupportRequest> SupportRequests => Set<SupportRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -116,7 +118,12 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.ProductImagesJson);
             entity.Property(x => x.ProductVariantsJson);
             entity.Property(x => x.TagsJson);
-            entity.Property(x => x.Supplier).HasMaxLength(200);
+
+            entity.HasOne<Supplier>(x => x.Supplier)
+                .WithMany()
+                .HasForeignKey(x => x.SupplierId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(x => x.ProductCategory)
                 .WithMany()
@@ -314,6 +321,25 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasIndex(x => new { x.StaffId, x.StoreId }).IsUnique();
+        });
+
+        modelBuilder.Entity<SupportRequest>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Message).HasMaxLength(2000).IsRequired();
+        });
+
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ContactEmail).HasMaxLength(200);
+            entity.Property(x => x.ContactPhone).HasMaxLength(30);
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         base.OnModelCreating(modelBuilder);

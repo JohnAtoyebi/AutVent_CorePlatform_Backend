@@ -119,4 +119,33 @@ public static class EmailTemplates
             }
         };
     }
+
+    public static EmailMessage ContactSupport(
+        string supportEmail,
+        string fullName,
+        string fromEmail,
+        string message,
+        IOptions<EmailOptions> options)
+    {
+        var templateAlias = options.Value.Resend.Templates.ContactSupport;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("ContactSupport template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = supportEmail,
+            Subject = $"Support Request from {fullName}",
+            TemplateAlias = templateAlias,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["fullName"] = fullName,
+                ["fromEmail"] = fromEmail,
+                ["message"] = message,
+                ["year"] = DateTime.UtcNow.Year
+            }
+        };
+    }
 }

@@ -108,4 +108,26 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
         var response = await productService.UpdateStatusAsync(id, request.IsActive, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPost("{id:long}/images")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadImages(long id, [FromForm] List<IFormFile> files, CancellationToken cancellationToken)
+    {
+        var response = await productService.UploadImagesAsync(id, files, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpDelete("{id:long}/images")]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteImage(long id, [FromQuery] string imageUrl, CancellationToken cancellationToken)
+    {
+        var response = await productService.DeleteImageAsync(id, imageUrl, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }

@@ -1,4 +1,5 @@
 using AutVent.CorePlatform.Api.Common;
+using AutVent.CorePlatform.Api.Common.Cloudinary;
 using AutVent.CorePlatform.Api.Common.Email;
 using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Api.Services;
@@ -11,6 +12,8 @@ public static class DependencyInjection
     {
         services.Configure<EmailOptions>(configuration.GetSection("Email"));
         services.Configure<AppOptions>(configuration.GetSection("App"));
+        services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
+        services.AddScoped<IImageService, CloudinaryImageService>();
         services.AddHttpClient(nameof(ResendEmailProvider));
         services.AddTransient<ResendEmailProvider>();
         services.AddScoped<IEmailProvider, EmailProviderFactory>();
@@ -33,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<IStaffService, StaffService>();
         services.AddScoped<IMetricsService, MetricsService>();
+        services.AddScoped<ISupportService, SupportService>();
         services.AddScoped<BusinessIndustrySeeder>();
         services.AddScoped<StaffRangeSeeder>();
         services.AddScoped<StoreCategorySeeder>();

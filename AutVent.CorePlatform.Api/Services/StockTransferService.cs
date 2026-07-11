@@ -97,7 +97,7 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
                 AvailableOnPos = src.AvailableOnPos,
                 AvailableOnAutShop = src.AvailableOnAutShop,
                 ReorderThreshold = src.ReorderThreshold,
-                Supplier = src.Supplier,
+                SupplierId = src.SupplierId,
                 IsActive = true,
                 CreatedBy = SystemActor,
                 DateCreated = now
