@@ -712,6 +712,118 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
     private static string? SerializeStringList(List<string>? items)
         => items is null ? null : JsonSerializer.Serialize(items);
 
+    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> BulkEditAsync(BulkEditProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
+    {
+        if (request.ProductIds.Count == 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "At least one product ID is required",
+                [new ApiError("EmptyProductIds", "ProductIds must contain at least one item", nameof(request.ProductIds))]);
+        }
+
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
+
+        if (store is null || store.Business.UserId != userId)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this store",
+                [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(storeId))]);
+        }
+
+        var products = await unitOfWork.Query<Product>()
+            .Include(x => x.ProductCategory)
+            .Where(x => request.ProductIds.Contains(x.Id) && x.StoreId == storeId && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var missingIds = request.ProductIds.Except(products.Select(x => x.Id)).ToList();
+        if (missingIds.Count > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "One or more products not found in this store",
+                missingIds.Select(id => new ApiError("ProductNotFound", $"Product with id {id} not found in this store", nameof(request.ProductIds))));
+        }
+
+        ProductCategory? newCategory = null;
+        if (request.ProductCategoryId.HasValue)
+        {
+            newCategory = await unitOfWork.Query<ProductCategory>()
+                .FirstOrDefaultAsync(x => x.Id == request.ProductCategoryId.Value, cancellationToken);
+
+            if (newCategory is null)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Product category not found",
+                    [new ApiError("CategoryNotFound", "No category found for the provided id", nameof(request.ProductCategoryId))]);
+            }
+        }
+
+        if (request.PriceAdjustment is not null &&
+            (request.PriceAdjustment.Type == PriceAdjustmentType.PercentageIncrease ||
+             request.PriceAdjustment.Type == PriceAdjustmentType.PercentageDecrease) &&
+            request.PriceAdjustment.Value > 100)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Percentage adjustment cannot exceed 100",
+                [new ApiError("InvalidPercentage", "Percentage value must be between 0.01 and 100", nameof(request.PriceAdjustment.Value))]);
+        }
+
+        var now = DateTime.UtcNow;
+
+        foreach (var product in products)
+        {
+            if (request.ProductCategoryId.HasValue && newCategory is not null)
+            {
+                product.ProductCategoryId = newCategory.Id;
+                product.ProductCategory = newCategory;
+            }
+
+            if (request.IsActive.HasValue)
+                product.IsActive = request.IsActive.Value;
+
+            if (request.AvailableOnPos.HasValue)
+                product.AvailableOnPos = request.AvailableOnPos.Value;
+
+            if (request.Supplier is not null)
+                product.Supplier = request.Supplier;
+
+            if (request.PriceAdjustment is not null &&
+                decimal.TryParse(NormalizePriceString(product.Price), out var currentPrice))
+            {
+                var adjustment = request.PriceAdjustment;
+                var newPrice = adjustment.Type switch
+                {
+                    PriceAdjustmentType.FixedIncrease      => currentPrice + adjustment.Value,
+                    PriceAdjustmentType.FixedDecrease      => currentPrice - adjustment.Value,
+                    PriceAdjustmentType.PercentageIncrease => currentPrice * (1 + adjustment.Value / 100),
+                    PriceAdjustmentType.PercentageDecrease => currentPrice * (1 - adjustment.Value / 100),
+                    _ => currentPrice
+                };
+
+                if (newPrice > 0)
+                    product.Price = Math.Round(newPrice, 2).ToString("F2");
+            }
+
+            product.DateUpdated = now;
+            product.UpdatedBy = SystemActor;
+            unitOfWork.Update(product);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var updated = products
+            .Select(x => MapToResponse(x, x.ProductCategory.Name))
+            .ToList();
+
+        return ApiResponse<IReadOnlyCollection<ProductResponse>>.Ok(updated, $"{updated.Count} product(s) updated successfully");
+    }
+
     private static string? SerializeVariants(List<CreateProductVariantRequest>? variants)
         => variants is null ? null : JsonSerializer.Serialize(variants);
 

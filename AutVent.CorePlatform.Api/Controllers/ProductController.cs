@@ -66,6 +66,17 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpPatch("store/{storeId:long}/bulk-edit")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> BulkEdit(long storeId, [FromBody] BulkEditProductRequest request, CancellationToken cancellationToken)
+    {
+        var response = await productService.BulkEditAsync(request, CurrentUserId, storeId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpPut("store/{storeId:long}/{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status400BadRequest)]
