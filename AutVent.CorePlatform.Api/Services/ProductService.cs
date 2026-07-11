@@ -162,7 +162,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .ToHashSet();
 
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId))
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId) && !x.IsDeleted)
             .Select(x => new { x.Name, x.StoreId })
             .ToListAsync(cancellationToken);
 
@@ -209,7 +209,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ProductCategoryId = x.ProductCategoryId,
                 ProductCategory = categoryMap[x.ProductCategoryId],
                 Description = x.Description,
-                Sku = x.Sku ?? GenerateSku(x.Name),
+                Sku = x.Sku ?? GenerateSkuInternal(x.Name),
                 Barcode = x.Barcode,
                 CostPrice = x.CostPrice,
                 CompareAtPrice = x.CompareAtPrice,
@@ -433,7 +433,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         // Check if products already exist in store
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId)
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId && !x.IsDeleted)
             .Select(x => x.Name)
             .ToListAsync(cancellationToken);
 
@@ -458,7 +458,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                     StoreId = storeId,
                     ProductCategoryId = matchedCategory.Id,
                     ProductCategory = matchedCategory,
-                    Sku = GenerateSku(x.Name),
+                    Sku = GenerateSkuInternal(x.Name),
                     IsActive = true,
                     AvailableOnPos = true,
                     AvailableOnAutShop = true,
@@ -490,7 +490,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -520,7 +520,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .Where(x => x.Store.Business.UserId == userId)
+            .Where(x => x.Store.Business.UserId == userId && !x.IsDeleted)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -615,7 +615,13 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<PagedResponse<ProductResponse>>.Ok(paged);
     }
 
-    private static string GenerateSku(string productName)
+    public ApiResponse<GenerateSkuResponse> GenerateSku(string productName)
+    {
+        var sku = GenerateSkuInternal(productName.Trim());
+        return ApiResponse<GenerateSkuResponse>.Ok(new GenerateSkuResponse { Sku = sku });
+    }
+
+    private static string GenerateSkuInternal(string productName)
     {
         var prefix = new string(productName
             .Where(char.IsLetterOrDigit)
@@ -625,15 +631,33 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            prefix = "PRD";
+            prefix = "AUT";
         }
 
-        var suffix = Guid.NewGuid().ToString("N").ToUpperInvariant();
-        return $"{prefix}{suffix}"[..10];
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+        var mid = new string(Enumerable.Range(0, 4).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+        var end = new string(Enumerable.Range(0, 3).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+
+        return $"{prefix}-{mid}-{end}";
     }
 
     private static string NormalizePriceString(string value)
         => value.Replace(",", string.Empty).Trim();
+
+    private static decimal? CalculateProfitMargin(string price, string? costPrice)
+    {
+        if (string.IsNullOrWhiteSpace(costPrice))
+            return null;
+
+        if (!decimal.TryParse(NormalizePriceString(price), out var sellingPrice) || sellingPrice <= 0)
+            return null;
+
+        if (!decimal.TryParse(NormalizePriceString(costPrice), out var cost))
+            return null;
+
+        return Math.Round((sellingPrice - cost) / sellingPrice * 100, 2);
+    }
 
     private static string? NormalizeNullablePriceString(string? value)
     {
@@ -688,6 +712,118 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
     private static string? SerializeStringList(List<string>? items)
         => items is null ? null : JsonSerializer.Serialize(items);
 
+    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> BulkEditAsync(BulkEditProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
+    {
+        if (request.ProductIds.Count == 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "At least one product ID is required",
+                [new ApiError("EmptyProductIds", "ProductIds must contain at least one item", nameof(request.ProductIds))]);
+        }
+
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
+
+        if (store is null || store.Business.UserId != userId)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this store",
+                [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(storeId))]);
+        }
+
+        var products = await unitOfWork.Query<Product>()
+            .Include(x => x.ProductCategory)
+            .Where(x => request.ProductIds.Contains(x.Id) && x.StoreId == storeId && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var missingIds = request.ProductIds.Except(products.Select(x => x.Id)).ToList();
+        if (missingIds.Count > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "One or more products not found in this store",
+                missingIds.Select(id => new ApiError("ProductNotFound", $"Product with id {id} not found in this store", nameof(request.ProductIds))));
+        }
+
+        ProductCategory? newCategory = null;
+        if (request.ProductCategoryId.HasValue)
+        {
+            newCategory = await unitOfWork.Query<ProductCategory>()
+                .FirstOrDefaultAsync(x => x.Id == request.ProductCategoryId.Value, cancellationToken);
+
+            if (newCategory is null)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Product category not found",
+                    [new ApiError("CategoryNotFound", "No category found for the provided id", nameof(request.ProductCategoryId))]);
+            }
+        }
+
+        if (request.PriceAdjustment is not null &&
+            (request.PriceAdjustment.Type == PriceAdjustmentType.PercentageIncrease ||
+             request.PriceAdjustment.Type == PriceAdjustmentType.PercentageDecrease) &&
+            request.PriceAdjustment.Value > 100)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Percentage adjustment cannot exceed 100",
+                [new ApiError("InvalidPercentage", "Percentage value must be between 0.01 and 100", nameof(request.PriceAdjustment.Value))]);
+        }
+
+        var now = DateTime.UtcNow;
+
+        foreach (var product in products)
+        {
+            if (request.ProductCategoryId.HasValue && newCategory is not null)
+            {
+                product.ProductCategoryId = newCategory.Id;
+                product.ProductCategory = newCategory;
+            }
+
+            if (request.IsActive.HasValue)
+                product.IsActive = request.IsActive.Value;
+
+            if (request.AvailableOnPos.HasValue)
+                product.AvailableOnPos = request.AvailableOnPos.Value;
+
+            if (request.Supplier is not null)
+                product.Supplier = request.Supplier;
+
+            if (request.PriceAdjustment is not null &&
+                decimal.TryParse(NormalizePriceString(product.Price), out var currentPrice))
+            {
+                var adjustment = request.PriceAdjustment;
+                var newPrice = adjustment.Type switch
+                {
+                    PriceAdjustmentType.FixedIncrease      => currentPrice + adjustment.Value,
+                    PriceAdjustmentType.FixedDecrease      => currentPrice - adjustment.Value,
+                    PriceAdjustmentType.PercentageIncrease => currentPrice * (1 + adjustment.Value / 100),
+                    PriceAdjustmentType.PercentageDecrease => currentPrice * (1 - adjustment.Value / 100),
+                    _ => currentPrice
+                };
+
+                if (newPrice > 0)
+                    product.Price = Math.Round(newPrice, 2).ToString("F2");
+            }
+
+            product.DateUpdated = now;
+            product.UpdatedBy = SystemActor;
+            unitOfWork.Update(product);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var updated = products
+            .Select(x => MapToResponse(x, x.ProductCategory.Name))
+            .ToList();
+
+        return ApiResponse<IReadOnlyCollection<ProductResponse>>.Ok(updated, $"{updated.Count} product(s) updated successfully");
+    }
+
     private static string? SerializeVariants(List<CreateProductVariantRequest>? variants)
         => variants is null ? null : JsonSerializer.Serialize(variants);
 
@@ -720,7 +856,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         ApplyToAllStoreLocations = product.ApplyToAllStoreLocations,
         Tags = DeserializeStringList(product.TagsJson),
         Weight = product.Weight,
-        Supplier = product.Supplier
+        Supplier = product.Supplier,
+        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice)
     };
 
     public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> UpdateAsync(long id, CreateProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
@@ -729,7 +866,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -775,11 +912,12 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 .Where(x =>
                     x.Store.BusinessId == product.Store.BusinessId &&
                     targetStoreIds.Contains(x.StoreId) &&
-                    x.Name.ToLower() == product.Name.ToLower())
+                    x.Name.ToLower() == product.Name.ToLower() &&
+                    !x.IsDeleted)
                 .ToListAsync(cancellationToken)
             : await unitOfWork.Query<Product>()
                 .Include(x => x.ProductCategory)
-                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId))
+                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId) && !x.IsDeleted)
                 .ToListAsync(cancellationToken);
 
         if (targetProducts.Count == 0)
@@ -819,7 +957,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Where(x =>
                 targetStoreIdSet.Contains(x.StoreId) &&
                 x.Name.ToLower() == normalizedName.ToLower() &&
-                !targetProductIds.Contains(x.Id))
+                !targetProductIds.Contains(x.Id) &&
+                !x.IsDeleted)
             .Select(x => new { x.StoreId, x.Name })
             .ToListAsync(cancellationToken);
 
@@ -853,7 +992,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             if (request.Description is not null)
                 targetProduct.Description = normalizedDescription;
 
-            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSku(normalizedName);
+            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSkuInternal(normalizedName);
 
             if (request.Barcode is not null)
                 targetProduct.Barcode = normalizedBarcode;
@@ -941,6 +1080,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var now = DateTime.UtcNow;
         product.IsActive = false;
+        product.IsDeleted = true;
         product.DateDeleted = now;
         product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
@@ -956,7 +1096,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var product = await unitOfWork.Query<Product>()
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -982,7 +1122,6 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var now = DateTime.UtcNow;
         product.IsActive = isActive;
-        product.DateDeleted = isActive ? null : now;
         product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
 
