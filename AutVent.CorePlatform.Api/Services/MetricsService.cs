@@ -609,7 +609,13 @@ public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
         var prevTo = from;
         var prevFrom = from - periodLength;
 
-        // Load all active products in scope (current snapshot)
+        // All business store IDs — used for business-wide stock value
+        var allBusinessStoreIds = await unitOfWork.Query<Store>()
+            .Where(x => x.BusinessId == business.Id)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        // Load all active products in scope (current snapshot) — store-filtered for low/out-of-stock
         var products = await unitOfWork.Query<Product>()
             .Where(p => storeIds.Contains(p.StoreId) && !p.IsDeleted)
             .Select(p => new
@@ -622,6 +628,17 @@ public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
             })
             .ToListAsync(cancellationToken);
 
+        // Load ALL products across the entire business for stock value calculation
+        var allBusinessProducts = await unitOfWork.Query<Product>()
+            .Where(p => allBusinessStoreIds.Contains(p.StoreId) && !p.IsDeleted)
+            .Select(p => new
+            {
+                p.Quantity,
+                p.Price,
+                p.DateCreated
+            })
+            .ToListAsync(cancellationToken);
+
         // ── Total Stock Value ──────────────────────────────────────────
         static decimal StockValue(decimal qty, string? costPriceStr)
         {
@@ -629,17 +646,20 @@ public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
             return qty * cost;
         }
 
-        var currentStockValue = products
-            .Sum(p => StockValue(p.Quantity, p.CostPrice));
+        var currentStockValue = allBusinessProducts
+            .Sum(p => StockValue(p.Quantity, p.Price));
 
-        var prevProducts = products.Where(p => p.DateCreated < prevTo).ToList();
-        var previousStockValue = prevProducts
-            .Sum(p => StockValue(p.Quantity, p.CostPrice));
+        var prevBusinessProducts = allBusinessProducts.Where(p => p.DateCreated < prevTo).ToList();
+        var previousStockValue = prevBusinessProducts
+            .Sum(p => StockValue(p.Quantity, p.Price));
 
         var stockValueChange = currentStockValue - previousStockValue;
         decimal? stockValuePct = previousStockValue > 0
             ? Math.Round(stockValueChange / previousStockValue * 100, 2)
             : currentStockValue > 0 ? 100m : null;
+
+        // prevProducts — store-scoped, used for Low/Out-of-stock previous period counts
+        var prevProducts = products.Where(p => p.DateCreated < prevTo).ToList();
 
         // ── Low Stock ──────────────────────────────────────────────────
         var currentLow = products.Count(p =>
