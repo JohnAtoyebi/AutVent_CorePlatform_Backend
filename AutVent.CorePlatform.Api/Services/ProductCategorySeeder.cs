@@ -41,6 +41,8 @@ public sealed class ProductCategorySeeder(IUnitOfWork unitOfWork)
         "Beauty & Cosmetics",
         "Food & Beverages",
         "Groceries",
-        "Health"
+        "Furnitures",
+        "Health",
+        "Others"
     ];
 }
