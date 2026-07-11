@@ -10,6 +10,7 @@ public interface IStaffService
     Task<ApiResponse<PagedResponse<StaffResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<StaffResponse>> UpdateAsync(long id, UpdateStaffRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<StaffResponse>> ChangeRoleAsync(long id, long roleId, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StaffResponse>> UpdateStatusAsync(long id, bool isActive, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DeleteAsync(long id, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyCollection<RoleResponse>>> GetRolesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<RoleDetailResponse>> GetRoleByIdAsync(long roleId, CancellationToken cancellationToken = default);

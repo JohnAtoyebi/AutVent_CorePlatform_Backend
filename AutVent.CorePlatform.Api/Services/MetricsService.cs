@@ -468,4 +468,316 @@ public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
             Items = items
         });
     }
+
+    public async Task<ApiResponse<ProductMetricsResponse>> GetProductMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<ProductMetricsResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found for this user",
+                [new ApiError("BusinessNotFound", "Create a business before accessing metrics", nameof(userId))]);
+        }
+
+        List<long> storeIds;
+        if (request.StoreId.HasValue)
+        {
+            var storeExists = await unitOfWork.Query<Store>()
+                .AnyAsync(x => x.Id == request.StoreId.Value && x.BusinessId == business.Id, cancellationToken);
+
+            if (!storeExists)
+            {
+                return ApiResponse<ProductMetricsResponse>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Store not found or does not belong to your business",
+                    [new ApiError("StoreNotFound", "No store found for the provided id", nameof(request.StoreId))]);
+            }
+
+            storeIds = [request.StoreId.Value];
+        }
+        else
+        {
+            storeIds = await unitOfWork.Query<Store>()
+                .Where(x => x.BusinessId == business.Id)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+        }
+
+        var to = (request.To ?? DateTime.UtcNow).ToUniversalTime();
+        var from = (request.From ?? to.AddDays(-30)).ToUniversalTime();
+        var periodLength = to - from;
+        var prevTo = from;
+        var prevFrom = from - periodLength;
+
+        // ── Total Products ─────────────────────────────────────────────
+        var currentProducts = await unitOfWork.Query<Product>()
+            .CountAsync(p => storeIds.Contains(p.StoreId) && !p.IsDeleted, cancellationToken);
+
+        var previousProducts = await unitOfWork.Query<Product>()
+            .CountAsync(p => storeIds.Contains(p.StoreId) && !p.IsDeleted && p.DateCreated < prevTo, cancellationToken);
+
+        // ── Total Categories ───────────────────────────────────────────
+        var totalCategories = await unitOfWork.Query<Product>()
+            .Where(p => storeIds.Contains(p.StoreId) && !p.IsDeleted)
+            .Select(p => p.ProductCategoryId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
+        // ── Average Price ──────────────────────────────────────────────
+        var prices = await unitOfWork.Query<Product>()
+            .Where(p => storeIds.Contains(p.StoreId) && !p.IsDeleted)
+            .Select(p => p.Price)
+            .ToListAsync(cancellationToken);
+
+        var averagePrice = prices.Count > 0
+            ? prices
+                .Select(p => decimal.TryParse(p, out var v) ? v : 0m)
+                .Average()
+            : 0m;
+
+        // ── Most Sold (top 10 by units in current period) ──────────────
+        var mostSold = await unitOfWork.Query<SaleItem>()
+            .Where(si =>
+                storeIds.Contains(si.Sale.StoreId) &&
+                si.Sale.DateCreated >= from && si.Sale.DateCreated < to &&
+                !si.Sale.IsDeleted)
+            .GroupBy(si => new { si.ProductId, si.Product.Name, si.Product.Sku })
+            .Select(g => new MostSoldProductResponse
+            {
+                ProductId = g.Key.ProductId,
+                ProductName = g.Key.Name,
+                Sku = g.Key.Sku,
+                UnitsSold = g.Sum(x => x.Quantity),
+                Revenue = g.Sum(x => x.LineTotal)
+            })
+            .OrderByDescending(x => x.UnitsSold)
+            .Take(10)
+            .ToListAsync(cancellationToken);
+
+        return ApiResponse<ProductMetricsResponse>.Ok(new ProductMetricsResponse
+        {
+            CurrentPeriod = new MetricPeriod { From = from, To = to },
+            PreviousPeriod = new MetricPeriod { From = prevFrom, To = prevTo },
+            TotalProducts = BuildMetric(currentProducts, previousProducts),
+            TotalCategories = totalCategories,
+            AveragePrice = Math.Round(averagePrice, 2),
+            MostSold = mostSold
+        });
+    }
+    public async Task<ApiResponse<InventoryMetricsResponse>> GetInventoryMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<InventoryMetricsResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found for this user",
+                [new ApiError("BusinessNotFound", "Create a business before accessing metrics", nameof(userId))]);
+        }
+
+        // Resolve stores in scope
+        var storesQuery = unitOfWork.Query<Store>()
+            .Where(x => x.BusinessId == business.Id);
+
+        if (request.StoreId.HasValue)
+        {
+            var storeExists = await storesQuery
+                .AnyAsync(x => x.Id == request.StoreId.Value, cancellationToken);
+
+            if (!storeExists)
+            {
+                return ApiResponse<InventoryMetricsResponse>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Store not found or does not belong to your business",
+                    [new ApiError("StoreNotFound", "No store found for the provided id", nameof(request.StoreId))]);
+            }
+
+            storesQuery = storesQuery.Where(x => x.Id == request.StoreId.Value);
+        }
+
+        var stores = await storesQuery.ToListAsync(cancellationToken);
+        var storeIds = stores.Select(s => s.Id).ToList();
+
+        var to = (request.To ?? DateTime.UtcNow).ToUniversalTime();
+        var from = (request.From ?? to.AddDays(-30)).ToUniversalTime();
+        var periodLength = to - from;
+        var prevTo = from;
+        var prevFrom = from - periodLength;
+
+        // Load all active products in scope (current snapshot)
+        var products = await unitOfWork.Query<Product>()
+            .Where(p => storeIds.Contains(p.StoreId) && !p.IsDeleted)
+            .Select(p => new
+            {
+                p.StoreId,
+                p.Quantity,
+                p.CostPrice,
+                p.ReorderThreshold,
+                p.DateCreated
+            })
+            .ToListAsync(cancellationToken);
+
+        // ── Total Stock Value ──────────────────────────────────────────
+        static decimal StockValue(decimal qty, string? costPriceStr)
+        {
+            if (!decimal.TryParse(costPriceStr, out var cost)) return 0m;
+            return qty * cost;
+        }
+
+        var currentStockValue = products
+            .Sum(p => StockValue(p.Quantity, p.CostPrice));
+
+        var prevProducts = products.Where(p => p.DateCreated < prevTo).ToList();
+        var previousStockValue = prevProducts
+            .Sum(p => StockValue(p.Quantity, p.CostPrice));
+
+        var stockValueChange = currentStockValue - previousStockValue;
+        decimal? stockValuePct = previousStockValue > 0
+            ? Math.Round(stockValueChange / previousStockValue * 100, 2)
+            : currentStockValue > 0 ? 100m : null;
+
+        // ── Low Stock ──────────────────────────────────────────────────
+        var currentLow = products.Count(p =>
+            p.Quantity > 0 && p.Quantity <= (p.ReorderThreshold ?? DefaultLowStockThreshold));
+        var previousLow = prevProducts.Count(p =>
+            p.Quantity > 0 && p.Quantity <= (p.ReorderThreshold ?? DefaultLowStockThreshold));
+
+        // ── Out Of Stock ───────────────────────────────────────────────
+        var currentOut = products.Count(p => p.Quantity == 0);
+        var previousOut = prevProducts.Count(p => p.Quantity == 0);
+
+        // ── Stock Locations ────────────────────────────────────────────
+        var productsByStore = products.GroupBy(p => p.StoreId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var stockLocations = stores.Select(store =>
+        {
+            var storeProducts = productsByStore.TryGetValue(store.Id, out var sp) ? sp : [];
+            return new StockLocationResponse
+            {
+                StoreId = store.Id,
+                StoreName = store.Name,
+                TotalProducts = storeProducts.Count,
+                TotalUnits = storeProducts.Sum(p => p.Quantity),
+                TotalStockValue = Math.Round(storeProducts.Sum(p => StockValue(p.Quantity, p.CostPrice)), 2),
+                LowStockCount = storeProducts.Count(p =>
+                    p.Quantity > 0 && p.Quantity <= (p.ReorderThreshold ?? DefaultLowStockThreshold)),
+                OutOfStockCount = storeProducts.Count(p => p.Quantity == 0)
+            };
+        }).ToList();
+
+        return ApiResponse<InventoryMetricsResponse>.Ok(new InventoryMetricsResponse
+        {
+            CurrentPeriod = new MetricPeriod { From = from, To = to },
+            PreviousPeriod = new MetricPeriod { From = prevFrom, To = prevTo },
+            TotalStockValue = new MetricItemDecimal
+            {
+                Current = Math.Round(currentStockValue, 2),
+                Previous = Math.Round(previousStockValue, 2),
+                Change = Math.Round(stockValueChange, 2),
+                PercentageChange = stockValuePct
+            },
+            LowStockItems = BuildMetric(currentLow, previousLow),
+            OutOfStockItems = BuildMetric(currentOut, previousOut),
+            StockLocations = stockLocations
+        });
+    }
+
+    public async Task<ApiResponse<CustomerMetricsResponse>> GetCustomerMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<CustomerMetricsResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found for this user",
+                [new ApiError("BusinessNotFound", "Create a business before accessing metrics", nameof(userId))]);
+        }
+
+        List<long> storeIds;
+        if (request.StoreId.HasValue)
+        {
+            var storeExists = await unitOfWork.Query<Store>()
+                .AnyAsync(x => x.Id == request.StoreId.Value && x.BusinessId == business.Id, cancellationToken);
+
+            if (!storeExists)
+            {
+                return ApiResponse<CustomerMetricsResponse>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Store not found or does not belong to your business",
+                    [new ApiError("StoreNotFound", "No store found for the provided id", nameof(request.StoreId))]);
+            }
+
+            storeIds = [request.StoreId.Value];
+        }
+        else
+        {
+            storeIds = await unitOfWork.Query<Store>()
+                .Where(x => x.BusinessId == business.Id)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+        }
+
+        var to = (request.To ?? DateTime.UtcNow).ToUniversalTime();
+        var from = (request.From ?? to.AddDays(-30)).ToUniversalTime();
+        var periodLength = to - from;
+        var prevTo = from;
+        var prevFrom = from - periodLength;
+
+        // ── Total Customers ────────────────────────────────────────────
+        var currentTotal = await unitOfWork.Query<Customer>()
+            .CountAsync(c => storeIds.Contains(c.StoreId) && !c.IsDeleted, cancellationToken);
+
+        var previousTotal = await unitOfWork.Query<Customer>()
+            .CountAsync(c => storeIds.Contains(c.StoreId) && !c.IsDeleted && c.DateCreated < prevTo, cancellationToken);
+
+        // ── New Customers ──────────────────────────────────────────────
+        var currentNew = await unitOfWork.Query<Customer>()
+            .CountAsync(c => storeIds.Contains(c.StoreId) && !c.IsDeleted &&
+                             c.DateCreated >= from && c.DateCreated < to, cancellationToken);
+
+        var previousNew = await unitOfWork.Query<Customer>()
+            .CountAsync(c => storeIds.Contains(c.StoreId) && !c.IsDeleted &&
+                             c.DateCreated >= prevFrom && c.DateCreated < prevTo, cancellationToken);
+
+        // ── Outstanding Balance ────────────────────────────────────────
+        var outstandingBalance = await unitOfWork.Query<Sale>()
+            .Where(s => storeIds.Contains(s.StoreId) && !s.IsDeleted && s.BalanceRemaining > 0)
+            .SumAsync(s => (decimal?)s.BalanceRemaining, cancellationToken) ?? 0m;
+
+        // ── Repeat Customers ───────────────────────────────────────────
+        // A repeat customer is one with more than 1 sale in the current period
+        var salesInPeriod = await unitOfWork.Query<Sale>()
+            .Where(s =>
+                storeIds.Contains(s.StoreId) &&
+                !s.IsDeleted &&
+                s.CustomerId.HasValue &&
+                s.DateCreated >= from && s.DateCreated < to)
+            .GroupBy(s => s.CustomerId)
+            .Select(g => new { CustomerId = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var totalWithPurchases = salesInPeriod.Count;
+        var repeatCount = salesInPeriod.Count(g => g.Count > 1);
+        var repeatPct = totalWithPurchases > 0
+            ? Math.Round((decimal)repeatCount / totalWithPurchases * 100, 2)
+            : 0m;
+
+        return ApiResponse<CustomerMetricsResponse>.Ok(new CustomerMetricsResponse
+        {
+            CurrentPeriod = new MetricPeriod { From = from, To = to },
+            PreviousPeriod = new MetricPeriod { From = prevFrom, To = prevTo },
+            TotalCustomers = BuildMetric(currentTotal, previousTotal),
+            NewCustomers = BuildMetric(currentNew, previousNew),
+            OutstandingBalance = Math.Round(outstandingBalance, 2),
+            RepeatCustomerCount = repeatCount,
+            RepeatCustomerPercentage = repeatPct
+        });
+    }
 }

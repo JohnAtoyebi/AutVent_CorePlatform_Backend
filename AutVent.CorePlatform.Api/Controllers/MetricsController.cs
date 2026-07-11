@@ -48,4 +48,31 @@ public class MetricsController(IMetricsService metricsService) : ApiControllerBa
         var response = await metricsService.GetRecentTransactionsAsync(request, paging, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpGet("products")]
+    [ProducesResponseType(typeof(ApiResponse<ProductMetricsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProductMetricsResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProductMetrics([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetProductMetricsAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("inventory")]
+    [ProducesResponseType(typeof(ApiResponse<InventoryMetricsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<InventoryMetricsResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInventoryMetrics([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetInventoryMetricsAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("customers")]
+    [ProducesResponseType(typeof(ApiResponse<CustomerMetricsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CustomerMetricsResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCustomerMetrics([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetCustomerMetricsAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }

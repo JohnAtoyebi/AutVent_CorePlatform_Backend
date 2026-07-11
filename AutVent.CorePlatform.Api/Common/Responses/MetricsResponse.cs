@@ -88,3 +88,92 @@ public sealed class SalesGraphPoint
     public decimal TotalSales { get; init; }
     public decimal TotalSettled { get; init; }
 }
+
+public sealed class ProductMetricsResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public MetricPeriod PreviousPeriod { get; init; } = null!;
+
+    /// <summary>Total active products with % change vs previous period.</summary>
+    public MetricItem TotalProducts { get; init; } = null!;
+
+    /// <summary>Total distinct active categories that have at least one product.</summary>
+    public int TotalCategories { get; init; }
+
+    /// <summary>Average price across all active products in scope.</summary>
+    public decimal AveragePrice { get; init; }
+
+    /// <summary>Top products by units sold in the current period.</summary>
+    public List<MostSoldProductResponse> MostSold { get; init; } = [];
+}
+
+public sealed class MostSoldProductResponse
+{
+    public long ProductId { get; init; }
+    public string ProductName { get; init; } = string.Empty;
+    public string? Sku { get; init; }
+    public long UnitsSold { get; init; }
+    public decimal Revenue { get; init; }
+}
+
+public sealed class InventoryMetricsResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public MetricPeriod PreviousPeriod { get; init; } = null!;
+
+    /// <summary>Sum of (Quantity * CostPrice) for all active products in scope, with % change.</summary>
+    public MetricItemDecimal TotalStockValue { get; init; } = null!;
+
+    /// <summary>Products where Quantity > 0 and Quantity <= ReorderThreshold.</summary>
+    public MetricItem LowStockItems { get; init; } = null!;
+
+    /// <summary>Products where Quantity == 0.</summary>
+    public MetricItem OutOfStockItems { get; init; } = null!;
+
+    /// <summary>Stores in scope with their stock snapshot.</summary>
+    public List<StockLocationResponse> StockLocations { get; init; } = [];
+}
+
+/// <summary>MetricItem variant for decimal values (e.g. monetary amounts).</summary>
+public sealed class MetricItemDecimal
+{
+    public decimal Current { get; init; }
+    public decimal Previous { get; init; }
+    public decimal Change { get; init; }
+    public decimal? PercentageChange { get; init; }
+    public string Trend => Change > 0 ? "up" : Change < 0 ? "down" : "flat";
+}
+
+public sealed class StockLocationResponse
+{
+    public long StoreId { get; init; }
+    public string StoreName { get; init; } = string.Empty;
+    public int TotalProducts { get; init; }
+    public long TotalUnits { get; init; }
+    public decimal TotalStockValue { get; init; }
+    public int LowStockCount { get; init; }
+    public int OutOfStockCount { get; init; }
+}
+
+public sealed class CustomerMetricsResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public MetricPeriod PreviousPeriod { get; init; } = null!;
+
+    /// <summary>All-time total customers in scope, with % change vs previous period.</summary>
+    public MetricItem TotalCustomers { get; init; } = null!;
+
+    /// <summary>Customers first created within the current period, with % change.</summary>
+    public MetricItem NewCustomers { get; init; } = null!;
+
+    /// <summary>Sum of BalanceRemaining across all unpaid/part-paid sales in scope.</summary>
+    public decimal OutstandingBalance { get; init; }
+
+    /// <summary>
+    /// Percentage of customers in scope who made more than one purchase in the current period.
+    /// </summary>
+    public decimal RepeatCustomerPercentage { get; init; }
+
+    /// <summary>Number of customers who made more than one purchase in the current period.</summary>
+    public int RepeatCustomerCount { get; init; }
+}
