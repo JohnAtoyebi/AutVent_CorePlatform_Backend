@@ -20,6 +20,8 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReferralRecord> ReferralRecords => Set<ReferralRecord>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -207,6 +209,42 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StockTransfer>(entity =>
+        {
+            entity.Property(x => x.TransferNumber).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(500);
+
+            entity.HasOne(x => x.SourceStore)
+                .WithMany()
+                .HasForeignKey(x => x.SourceStoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.DestinationStore)
+                .WithMany()
+                .HasForeignKey(x => x.DestinationStoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(x => x.Items)
+                .WithOne(x => x.StockTransfer)
+                .HasForeignKey(x => x.StockTransferId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StockTransferItem>(entity =>
+        {
+            entity.Property(x => x.Notes).HasMaxLength(500);
+
+            entity.HasOne(x => x.SourceProduct)
+                .WithMany()
+                .HasForeignKey(x => x.SourceProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.DestinationProduct)
+                .WithMany()
+                .HasForeignKey(x => x.DestinationProductId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         base.OnModelCreating(modelBuilder);

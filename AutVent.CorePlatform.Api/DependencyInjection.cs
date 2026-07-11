@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IPosService, PosService>();
         services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<BusinessIndustrySeeder>();
         services.AddScoped<StaffRangeSeeder>();
         services.AddScoped<StoreCategorySeeder>();

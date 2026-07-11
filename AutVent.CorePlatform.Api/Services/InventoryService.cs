@@ -1,6 +1,7 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -150,7 +151,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
 
         var query = unitOfWork.Query<Product>()
             .Include(x => x.ProductCategory)
-            .Where(x => x.StoreId == storeId)
+            .Where(x => x.StoreId == storeId && !x.IsDeleted)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -163,16 +164,57 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
 
         if (request.Filters is not null)
         {
-            if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
+            if (request.Filters.TryGetValue("storeIds", out var storeIdsFilter))
             {
-                query = query.Where(x => x.IsActive == isActive);
+                var parsedIds = storeIdsFilter
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(s => long.TryParse(s, out var v) ? v : (long?)null)
+                    .Where(v => v.HasValue)
+                    .Select(v => v!.Value)
+                    .ToList();
+
+                if (parsedIds.Count > 0)
+                {
+                    var authorizedStoreIds = await unitOfWork.Query<Store>()
+                        .Where(x => parsedIds.Contains(x.Id) && x.Business.UserId == userId)
+                        .Select(x => x.Id)
+                        .ToListAsync(cancellationToken);
+
+                    var unauthorizedIds = parsedIds.Except(authorizedStoreIds).ToList();
+                    if (unauthorizedIds.Count > 0)
+                    {
+                        return ApiResponse<PagedResponse<InventoryItemResponse>>.Failed(
+                            StatusCodes.Status403Forbidden,
+                            "One or more store IDs do not belong to your business",
+                            unauthorizedIds.Select(id => new ApiError("UnauthorizedStore", $"Store {id} does not belong to your business", "storeIds")));
+                    }
+
+                    query = query.Where(x => authorizedStoreIds.Contains(x.StoreId));
+                }
             }
 
-            if (request.Filters.TryGetValue("isLowStock", out var isLowStockFilter) && bool.TryParse(isLowStockFilter, out var isLowStock))
+            if (request.Filters.TryGetValue("stockStatus", out var stockStatusFilter) &&
+                Enum.TryParse<InventoryStockStatus>(stockStatusFilter, true, out var stockStatus) &&
+                stockStatus != InventoryStockStatus.All)
+            {
+                query = stockStatus switch
+                {
+                    InventoryStockStatus.OutOfStock => query.Where(x => x.Quantity == 0),
+                    InventoryStockStatus.LowStock   => query.Where(x => x.Quantity > 0 && x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value),
+                    InventoryStockStatus.InStock    => query.Where(x => x.Quantity > 0 && (!x.ReorderThreshold.HasValue || x.Quantity > x.ReorderThreshold.Value)),
+                    _ => query
+                };
+            }
+            else if (request.Filters.TryGetValue("isLowStock", out var isLowStockFilter) && bool.TryParse(isLowStockFilter, out var isLowStock))
             {
                 query = isLowStock
                     ? query.Where(x => x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value)
                     : query.Where(x => !x.ReorderThreshold.HasValue || x.Quantity > x.ReorderThreshold.Value);
+            }
+
+            if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
+            {
+                query = query.Where(x => x.IsActive == isActive);
             }
 
             if (request.Filters.TryGetValue("minQuantity", out var minQtyFilter) && long.TryParse(minQtyFilter, out var minQty))
@@ -188,8 +230,21 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
 
         var totalCount = await query.CountAsync(cancellationToken);
 
+        var sortBy = Enum.TryParse<InventorySortBy>(request.SortBy, true, out var parsedSort)
+            ? parsedSort
+            : InventorySortBy.Newest;
+
+        query = sortBy switch
+        {
+            InventorySortBy.Oldest       => query.OrderBy(x => x.Id),
+            InventorySortBy.NameAsc      => query.OrderBy(x => x.Name),
+            InventorySortBy.NameDesc     => query.OrderByDescending(x => x.Name),
+            InventorySortBy.QuantityAsc  => query.OrderBy(x => x.Quantity),
+            InventorySortBy.QuantityDesc => query.OrderByDescending(x => x.Quantity),
+            _                            => query.OrderByDescending(x => x.Id)
+        };
+
         var items = await query
-            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new InventoryItemResponse
@@ -202,7 +257,8 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 ReorderThreshold = x.ReorderThreshold,
                 IsLowStock = x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value,
                 IsActive = x.IsActive,
-                ProductCategory = x.ProductCategory.Name
+                ProductCategory = x.ProductCategory.Name,
+                CostPrice = x.CostPrice
             })
             .ToListAsync(cancellationToken);
 
@@ -242,8 +298,52 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(productId))]);
         }
 
-        product.Quantity = request.Quantity;
-        product.DateUpdated = DateTime.UtcNow;
+        // Validate LocationStoreId
+        var locationStore = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == request.LocationStoreId, cancellationToken);
+
+        if (locationStore is null || locationStore.Business.UserId != userId)
+        {
+            return ApiResponse<InventoryItemResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "Location store not found or does not belong to your business",
+                [new ApiError("UnauthorizedStore", "The location store does not belong to your business", nameof(request.LocationStoreId))]);
+        }
+
+        var now = DateTime.UtcNow;
+
+        if (request.Type == StockAdjustmentType.StockIn)
+        {
+            if (request.PurchaseCostPerUnit.HasValue)
+            {
+                var newCost = request.PurchaseCostPerUnit.Value;
+                var existingCost = decimal.TryParse(product.CostPrice, out var parsed) ? parsed : newCost;
+                var existingQty = product.Quantity;
+
+                var weightedAverage = existingQty > 0
+                    ? (existingQty * existingCost + request.Quantity * newCost) / (existingQty + request.Quantity)
+                    : newCost;
+
+                product.CostPrice = Math.Round(weightedAverage, 2).ToString("F2");
+            }
+
+            product.Quantity += request.Quantity;
+        }
+        else
+        {
+            if (product.Quantity < request.Quantity)
+            {
+                return ApiResponse<InventoryItemResponse>.Failed(
+                    StatusCodes.Status409Conflict,
+                    "Insufficient stock",
+                    [new ApiError("InsufficientStock", $"Cannot remove {request.Quantity} units. Available stock: {product.Quantity}", nameof(request.Quantity))]);
+            }
+
+            product.Quantity -= request.Quantity;
+        }
+
+        product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
 
         unitOfWork.Update(product);
@@ -259,10 +359,11 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
             ReorderThreshold = product.ReorderThreshold,
             IsLowStock = product.ReorderThreshold.HasValue && product.Quantity <= product.ReorderThreshold.Value,
             IsActive = product.IsActive,
-            ProductCategory = product.ProductCategory.Name
+            ProductCategory = product.ProductCategory.Name,
+            CostPrice = product.CostPrice
         };
 
-        return ApiResponse<InventoryItemResponse>.Ok(response, "Inventory stock updated successfully");
+        return ApiResponse<InventoryItemResponse>.Ok(response, $"Stock {(request.Type == StockAdjustmentType.StockIn ? "added" : "removed")} successfully");
     }
 
     private static decimal CalculatePercentageIncrease(long currentValue, long previousValue)

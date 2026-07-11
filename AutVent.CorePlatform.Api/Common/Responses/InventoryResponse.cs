@@ -28,4 +28,5 @@ public sealed class InventoryItemResponse
     public bool IsLowStock { get; init; }
     public bool IsActive { get; init; }
     public string ProductCategory { get; init; } = string.Empty;
+    public string? CostPrice { get; init; }
 }
