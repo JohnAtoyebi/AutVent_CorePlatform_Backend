@@ -123,6 +123,12 @@ using (var scope = app.Services.CreateScope())
 
     var staffRangeSeeder = scope.ServiceProvider.GetRequiredService<StaffRangeSeeder>();
     await staffRangeSeeder.SeedAsync();
+
+    var roleSeeder = scope.ServiceProvider.GetRequiredService<RoleSeeder>();
+    await roleSeeder.SeedAsync();
+
+    var permissionSeeder = scope.ServiceProvider.GetRequiredService<PermissionSeeder>();
+    await permissionSeeder.SeedAsync();
 }
 
 if (app.Environment.IsDevelopment())

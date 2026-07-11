@@ -3,6 +3,7 @@ using System;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutVent.CorePlatform.Infrastructure.Migrations
 {
     [DbContext(typeof(CorePlatformDbContext))]
-    partial class CorePlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260711043451_RenameStaffRoleToRoleAndAddPermissions")]
+    partial class RenameStaffRoleToRoleAndAddPermissions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -76,7 +79,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Businesses", (string)null);
+                    b.ToTable("Businesses");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessIndustry", b =>
@@ -121,7 +124,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("BusinessIndustries", (string)null);
+                    b.ToTable("BusinessIndustries");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Customer", b =>
@@ -183,7 +186,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("PhoneNumber", "StoreId")
                         .IsUnique();
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Otp", b =>
@@ -240,7 +243,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Otps", (string)null);
+                    b.ToTable("Otps");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.PasswordResetToken", b =>
@@ -296,7 +299,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PasswordResetTokens", (string)null);
+                    b.ToTable("PasswordResetTokens");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Permission", b =>
@@ -350,7 +353,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Permissions", (string)null);
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Product", b =>
@@ -461,7 +464,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ProductCategory", b =>
@@ -506,7 +509,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("ProductCategories", (string)null);
+                    b.ToTable("ProductCategories");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ReferralRecord", b =>
@@ -559,7 +562,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("ReferrerId", "ReferredUserId")
                         .IsUnique();
 
-                    b.ToTable("ReferralRecords", (string)null);
+                    b.ToTable("ReferralRecords");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.RefreshToken", b =>
@@ -615,7 +618,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Role", b =>
@@ -715,7 +718,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("RoleId", "PermissionId")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions", (string)null);
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
@@ -815,7 +818,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("Sales", (string)null);
+                    b.ToTable("Sales");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SaleItem", b =>
@@ -871,7 +874,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("SaleItems", (string)null);
+                    b.ToTable("SaleItems");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Staff", b =>
@@ -939,7 +942,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("Staff", (string)null);
+                    b.ToTable("Staff");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StaffRange", b =>
@@ -984,7 +987,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StaffRanges", (string)null);
+                    b.ToTable("StaffRanges");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StaffStoreAccess", b =>
@@ -1032,7 +1035,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("StaffId", "StoreId")
                         .IsUnique();
 
-                    b.ToTable("StaffStoreAccess", (string)null);
+                    b.ToTable("StaffStoreAccess");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StockTransfer", b =>
@@ -1094,7 +1097,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("SourceStoreId");
 
-                    b.ToTable("StockTransfers", (string)null);
+                    b.ToTable("StockTransfers");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StockTransferItem", b =>
@@ -1153,7 +1156,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StockTransferId");
 
-                    b.ToTable("StockTransferItems", (string)null);
+                    b.ToTable("StockTransferItems");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Store", b =>
@@ -1215,7 +1218,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StoreCategoryId");
 
-                    b.ToTable("Stores", (string)null);
+                    b.ToTable("Stores");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StoreCategory", b =>
@@ -1260,7 +1263,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StoreCategories", (string)null);
+                    b.ToTable("StoreCategories");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.User", b =>
@@ -1330,7 +1333,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("ReferralCode")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>
