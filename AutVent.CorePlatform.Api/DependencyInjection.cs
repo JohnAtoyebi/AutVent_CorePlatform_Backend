@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<IStaffService, StaffService>();
+        services.AddScoped<IMetricsService, MetricsService>();
         services.AddScoped<BusinessIndustrySeeder>();
         services.AddScoped<StaffRangeSeeder>();
         services.AddScoped<StoreCategorySeeder>();
