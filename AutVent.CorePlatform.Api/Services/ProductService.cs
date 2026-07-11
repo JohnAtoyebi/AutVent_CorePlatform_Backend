@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
+public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService) : IProductService
 {
     private const string SystemActor = "system";
 
@@ -74,7 +74,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ApplyToAllStoreLocations = x.ApplyToAllStoreLocations,
                 Tags = NormalizeStringList(x.Tags),
                 Weight = x.Weight,
-                Supplier = NormalizeNullableString(x.Supplier)
+                SupplierId = x.SupplierId
             })
             .ToList();
 
@@ -120,7 +120,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                     x.ApplyToAllStoreLocations,
                     x.Tags,
                     x.Weight,
-                    x.Supplier,
+                    x.SupplierId,
                     TargetStoreId = targetStoreId
                 });
             })
@@ -199,6 +199,44 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 missingCategoryIds.Select(id => new ApiError("InvalidCategory", $"Product category with id {id} does not exist", nameof(CreateProductRequest.ProductCategoryId))));
         }
 
+        var invalidThresholds = expandedRequests
+            .Where(x => x.ReorderThreshold.HasValue && x.ReorderThreshold.Value >= x.Quantity)
+            .ToArray();
+
+        if (invalidThresholds.Length > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Reorder threshold must be less than the stock quantity",
+                invalidThresholds.Select(x => new ApiError(
+                    "InvalidReorderThreshold",
+                    $"Reorder threshold ({x.ReorderThreshold}) must be less than the stock quantity ({x.Quantity}) for product '{x.Name}'",
+                    nameof(CreateProductRequest.ReorderThreshold))));
+        }
+
+        var requestedSupplierIds = expandedRequests
+            .Where(x => x.SupplierId.HasValue)
+            .Select(x => x.SupplierId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (requestedSupplierIds.Length > 0)
+        {
+            var validSupplierIds = await unitOfWork.Query<Supplier>()
+                .Where(x => requestedSupplierIds.Contains(x.Id) && x.BusinessId == store.BusinessId)
+                .Select(x => x.Id)
+                .ToHashSetAsync(cancellationToken);
+
+            var invalidSupplierIds = requestedSupplierIds.Where(id => !validSupplierIds.Contains(id)).ToArray();
+            if (invalidSupplierIds.Length > 0)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "One or more supplier IDs are invalid",
+                    invalidSupplierIds.Select(id => new ApiError("InvalidSupplier", $"Supplier with id {id} does not exist or does not belong to your business", nameof(CreateProductRequest.SupplierId))));
+            }
+        }
+
         var products = expandedRequests
             .Select(x => new Product
             {
@@ -215,7 +253,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 CompareAtPrice = x.CompareAtPrice,
                 ProductImagesJson = SerializeStringList(x.ProductImages),
                 ProductVariantsEnabled = x.ProductVariantsEnabled,
-                ProductVariantsJson = SerializeVariants(x.ProductVariants),
+                ProductVariantsJson = x.ProductVariantsEnabled == true ? SerializeVariants(x.ProductVariants) : null,
                 IsActive = x.ActiveProduct ?? true,
                 AvailableOnPos = x.AvailableOnPos ?? true,
                 AvailableOnAutShop = x.AvailableOnAutShop ?? true,
@@ -223,7 +261,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ApplyToAllStoreLocations = x.ApplyToAllStoreLocations,
                 TagsJson = SerializeStringList(x.Tags),
                 Weight = x.Weight,
-                Supplier = x.Supplier,
+                SupplierId = x.SupplierId,
                 CreatedBy = SystemActor,
                 DateCreated = now
             })
@@ -790,8 +828,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             if (request.AvailableOnPos.HasValue)
                 product.AvailableOnPos = request.AvailableOnPos.Value;
 
-            if (request.Supplier is not null)
-                product.Supplier = request.Supplier;
+            if (request.SupplierId.HasValue)
+                product.SupplierId = request.SupplierId;
 
             if (request.PriceAdjustment is not null &&
                 decimal.TryParse(NormalizePriceString(product.Price), out var currentPrice))
@@ -856,7 +894,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         ApplyToAllStoreLocations = product.ApplyToAllStoreLocations,
         Tags = DeserializeStringList(product.TagsJson),
         Weight = product.Weight,
-        Supplier = product.Supplier,
+        SupplierId = product.SupplierId,
         ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice)
     };
 
@@ -936,6 +974,14 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 [new ApiError("InvalidQuantity", "Quantity must be greater than 0", nameof(request.Quantity))]);
         }
 
+        if (request.ReorderThreshold.HasValue && request.ReorderThreshold.Value >= request.Quantity)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Reorder threshold must be less than the stock quantity",
+                [new ApiError("InvalidReorderThreshold", $"Reorder threshold ({request.ReorderThreshold}) must be less than the stock quantity ({request.Quantity})", nameof(request.ReorderThreshold))]);
+        }
+
         var normalizedName = request.Name.Trim();
         var normalizedPrice = NormalizePriceString(request.Price);
 
@@ -975,10 +1021,23 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var normalizedBarcode = NormalizeNullableString(request.Barcode);
         var normalizedCostPrice = NormalizeNullablePriceString(request.CostPrice);
         var normalizedCompareAtPrice = NormalizeNullablePriceString(request.CompareAtPrice);
-        var normalizedSupplier = NormalizeNullableString(request.Supplier);
         var normalizedImages = NormalizeStringList(request.ProductImages);
         var normalizedVariants = NormalizeVariants(request.ProductVariants);
         var normalizedTags = NormalizeStringList(request.Tags);
+
+        if (request.SupplierId.HasValue)
+        {
+            var supplierExists = await unitOfWork.Query<Supplier>()
+                .AnyAsync(x => x.Id == request.SupplierId.Value && x.BusinessId == product.Store.BusinessId, cancellationToken);
+
+            if (!supplierExists)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Supplier not found",
+                    [new ApiError("InvalidSupplier", $"Supplier with id {request.SupplierId} does not exist or does not belong to your business", nameof(request.SupplierId))]);
+            }
+        }
 
         var now = DateTime.UtcNow;
         foreach (var targetProduct in targetProducts)
@@ -1007,9 +1066,15 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 targetProduct.ProductImagesJson = SerializeStringList(normalizedImages);
 
             if (request.ProductVariantsEnabled.HasValue)
+            {
                 targetProduct.ProductVariantsEnabled = request.ProductVariantsEnabled;
 
-            if (request.ProductVariants is not null)
+                if (request.ProductVariantsEnabled == false)
+                    targetProduct.ProductVariantsJson = null;
+                else if (request.ProductVariants is not null)
+                    targetProduct.ProductVariantsJson = SerializeVariants(normalizedVariants);
+            }
+            else if (request.ProductVariants is not null && targetProduct.ProductVariantsEnabled == true)
                 targetProduct.ProductVariantsJson = SerializeVariants(normalizedVariants);
 
             if (request.ActiveProduct.HasValue)
@@ -1033,8 +1098,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             if (request.Weight.HasValue)
                 targetProduct.Weight = request.Weight;
 
-            if (request.Supplier is not null)
-                targetProduct.Supplier = normalizedSupplier;
+            if (request.SupplierId.HasValue)
+                targetProduct.SupplierId = request.SupplierId;
 
             targetProduct.DateUpdated = now;
             targetProduct.UpdatedBy = SystemActor;
@@ -1130,5 +1195,130 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var successMessage = isActive ? "Product activated successfully" : "Product deactivated successfully";
         return ApiResponse<bool>.Ok(true, successMessage);
+    }
+
+    public async Task<ApiResponse<ProductResponse>> UploadImagesAsync(long id, IReadOnlyCollection<IFormFile> files, long userId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .Include(x => x.ProductCategory)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        if (files.Count == 0)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "At least one image file is required",
+                [new ApiError("NoFiles", "Provide one or more image files", nameof(files))]);
+        }
+
+        var existingUrls = DeserializeStringList(product.ProductImagesJson) ?? [];
+
+        var uploadTasks = files.Select(file => imageService.UploadAsync(file, userId, ImageType.Product, cancellationToken));
+        var uploadResults = await Task.WhenAll(uploadTasks);
+
+        var newUrls = existingUrls.Concat(uploadResults.Select(r => r.Url)).ToList();
+        product.ProductImagesJson = SerializeStringList(newUrls);
+        product.DateUpdated = DateTime.UtcNow;
+        product.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(product);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<ProductResponse>.Ok(MapToResponse(product, product.ProductCategory.Name), "Images uploaded successfully");
+    }
+
+    public async Task<ApiResponse<ProductResponse>> DeleteImageAsync(long id, string imageUrl, long userId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .Include(x => x.ProductCategory)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        var existingUrls = DeserializeStringList(product.ProductImagesJson) ?? [];
+
+        if (!existingUrls.Contains(imageUrl))
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Image not found on this product",
+                [new ApiError("ImageNotFound", "The specified image URL does not exist on this product", nameof(imageUrl))]);
+        }
+
+        var publicId = ExtractCloudinaryPublicId(imageUrl);
+        if (!string.IsNullOrWhiteSpace(publicId))
+            await imageService.DeleteAsync(publicId, cancellationToken);
+
+        var updatedUrls = existingUrls.Where(u => u != imageUrl).ToList();
+        product.ProductImagesJson = SerializeStringList(updatedUrls);
+        product.DateUpdated = DateTime.UtcNow;
+        product.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(product);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<ProductResponse>.Ok(MapToResponse(product, product.ProductCategory.Name), "Image deleted successfully");
+    }
+
+    private static string? ExtractCloudinaryPublicId(string url)
+    {
+        // Cloudinary URL format: https://res.cloudinary.com/{cloud}/image/upload/{version}/{folder}/{filename}
+        // Public ID = {folder}/{filename_without_extension}
+        try
+        {
+            var uri = new Uri(url);
+            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var uploadIndex = Array.IndexOf(segments, "upload");
+            if (uploadIndex < 0 || uploadIndex >= segments.Length - 1)
+                return null;
+
+            // Skip version segment (starts with 'v' followed by digits)
+            var afterUpload = segments.Skip(uploadIndex + 1).ToArray();
+            var start = afterUpload.Length > 0 && afterUpload[0].StartsWith('v') && afterUpload[0].Length > 1
+                ? 1
+                : 0;
+
+            var publicIdWithExtension = string.Join("/", afterUpload.Skip(start));
+            var dotIndex = publicIdWithExtension.LastIndexOf('.');
+            return dotIndex > 0 ? publicIdWithExtension[..dotIndex] : publicIdWithExtension;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

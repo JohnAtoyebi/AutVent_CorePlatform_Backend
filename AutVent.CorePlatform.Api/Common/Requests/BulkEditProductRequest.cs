@@ -15,8 +15,8 @@ public sealed class BulkEditProductRequest
 
     public bool? AvailableOnPos { get; init; }
 
-    [MaxLength(200)]
-    public string? Supplier { get; init; }
+    [Range(1, long.MaxValue)]
+    public long? SupplierId { get; init; }
 
     public PriceAdjustmentRequest? PriceAdjustment { get; init; }
 }

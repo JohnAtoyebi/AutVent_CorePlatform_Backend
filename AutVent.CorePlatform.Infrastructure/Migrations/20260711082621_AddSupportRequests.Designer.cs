@@ -3,6 +3,7 @@ using System;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutVent.CorePlatform.Infrastructure.Migrations
 {
     [DbContext(typeof(CorePlatformDbContext))]
-    partial class CorePlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260711082621_AddSupportRequests")]
+    partial class AddSupportRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -441,8 +444,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<long>("StoreId")
                         .HasColumnType("bigint");
 
-                    b.Property<long?>("SupplierId")
-                        .HasColumnType("bigint");
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("TagsJson")
                         .HasColumnType("text");
@@ -459,8 +463,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("ProductCategoryId");
 
                     b.HasIndex("StoreId");
-
-                    b.HasIndex("SupplierId");
 
                     b.ToTable("Products");
                 });
@@ -1264,61 +1266,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.ToTable("StoreCategories");
                 });
 
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Supplier", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<long>("BusinessId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("ContactPhone")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateDeleted")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateUpdated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.ToTable("Suppliers");
-                });
-
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SupportRequest", b =>
                 {
                     b.Property<long>("Id")
@@ -1507,16 +1454,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("ProductCategory");
 
                     b.Navigation("Store");
-
-                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ReferralRecord", b =>
@@ -1706,17 +1646,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("Business");
 
                     b.Navigation("StoreCategory");
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Supplier", b =>
-                {
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
-                        .WithMany()
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Business");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>
