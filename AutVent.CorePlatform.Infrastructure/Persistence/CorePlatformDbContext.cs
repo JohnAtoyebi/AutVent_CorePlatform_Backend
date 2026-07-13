@@ -29,6 +29,8 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Staff> Staff => Set<Staff>();
     public DbSet<StaffStoreAccess> StaffStoreAccess => Set<StaffStoreAccess>();
     public DbSet<SupportRequest> SupportRequests => Set<SupportRequest>();
+    public DbSet<SubscriptionPlanDefinition> SubscriptionPlanDefinitions => Set<SubscriptionPlanDefinition>();
+    public DbSet<BusinessSubscription> BusinessSubscriptions => Set<BusinessSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -340,6 +342,31 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.BusinessId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SubscriptionPlanDefinition>(entity =>
+        {
+            entity.Property(x => x.Plan).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.MonthlyPrice).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.AnnualPrice).HasColumnType("decimal(18,2)");
+            entity.HasIndex(x => x.Plan).IsUnique();
+        });
+
+        modelBuilder.Entity<BusinessSubscription>(entity =>
+        {
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.SubscriptionPlan)
+                .WithMany()
+                .HasForeignKey(x => x.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         base.OnModelCreating(modelBuilder);

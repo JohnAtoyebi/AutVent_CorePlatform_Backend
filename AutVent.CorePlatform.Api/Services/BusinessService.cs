@@ -3,6 +3,7 @@ using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -82,11 +83,28 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         };
 
         await unitOfWork.CreateAsync(business, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         await emailProvider.SendAsync(
             EmailTemplates.BusinessWelcome(user.EmailAddress, user.FullName, businessName, emailOptions),
             cancellationToken);
+
+        var starterPlan = await unitOfWork.Query<SubscriptionPlanDefinition>()
+            .FirstAsync(x => x.Plan == SubscriptionPlan.Starter, cancellationToken);
+
+        var subscription = new BusinessSubscription
+        {
+            Business = business,
+            SubscriptionPlanId = starterPlan.Id,
+            Status = SubscriptionStatus.Trial,
+            TrialStartDate = now,
+            TrialEndDate = now.AddDays(30),
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = now
+        };
+        await unitOfWork.CreateAsync(subscription, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var response = MapToResponse(business, industry.Name, staffRange.Name);
         return ApiResponse<CreateBusinessResponse>.Created(response, "Business created successfully");

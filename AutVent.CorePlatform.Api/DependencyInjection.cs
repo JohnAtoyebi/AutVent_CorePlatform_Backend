@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<ProductCategorySeeder>();
         services.AddScoped<RoleSeeder>();
         services.AddScoped<PermissionSeeder>();
+        services.AddScoped<SubscriptionPlanSeeder>();
         return services;
     }
 }
