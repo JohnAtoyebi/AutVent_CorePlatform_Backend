@@ -3,6 +3,7 @@ using System;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutVent.CorePlatform.Infrastructure.Migrations
 {
     [DbContext(typeof(CorePlatformDbContext))]
-    partial class CorePlatformDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260713134738_AddUserSubscriptions")]
+    partial class AddUserSubscriptions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -76,7 +79,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Businesses", (string)null);
+                    b.ToTable("Businesses");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessIndustry", b =>
@@ -121,71 +124,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("BusinessIndustries", (string)null);
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessSubscription", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<long>("BusinessId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateDeleted")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateUpdated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("PlanEndDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("PlanStartDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<long>("SubscriptionPlanId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime>("TrialEndDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("TrialStartDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("SubscriptionPlanId");
-
-                    b.ToTable("BusinessSubscriptions", (string)null);
+                    b.ToTable("BusinessIndustries");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Customer", b =>
@@ -247,7 +186,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("PhoneNumber", "StoreId")
                         .IsUnique();
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Otp", b =>
@@ -304,7 +243,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Otps", (string)null);
+                    b.ToTable("Otps");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.PasswordResetToken", b =>
@@ -360,7 +299,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PasswordResetTokens", (string)null);
+                    b.ToTable("PasswordResetTokens");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Permission", b =>
@@ -414,7 +353,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Permissions", (string)null);
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Product", b =>
@@ -526,7 +465,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ProductCategory", b =>
@@ -571,7 +510,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("ProductCategories", (string)null);
+                    b.ToTable("ProductCategories");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ReferralRecord", b =>
@@ -624,7 +563,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("ReferrerId", "ReferredUserId")
                         .IsUnique();
 
-                    b.ToTable("ReferralRecords", (string)null);
+                    b.ToTable("ReferralRecords");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.RefreshToken", b =>
@@ -680,7 +619,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Role", b =>
@@ -780,7 +719,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("RoleId", "PermissionId")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions", (string)null);
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Sale", b =>
@@ -880,7 +819,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StoreId");
 
-                    b.ToTable("Sales", (string)null);
+                    b.ToTable("Sales");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SaleItem", b =>
@@ -936,7 +875,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("SaleItems", (string)null);
+                    b.ToTable("SaleItems");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Staff", b =>
@@ -1004,7 +943,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("Staff", (string)null);
+                    b.ToTable("Staff");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StaffRange", b =>
@@ -1049,7 +988,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StaffRanges", (string)null);
+                    b.ToTable("StaffRanges");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StaffStoreAccess", b =>
@@ -1097,7 +1036,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("StaffId", "StoreId")
                         .IsUnique();
 
-                    b.ToTable("StaffStoreAccess", (string)null);
+                    b.ToTable("StaffStoreAccess");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StockTransfer", b =>
@@ -1159,7 +1098,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("SourceStoreId");
 
-                    b.ToTable("StockTransfers", (string)null);
+                    b.ToTable("StockTransfers");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StockTransferItem", b =>
@@ -1218,7 +1157,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StockTransferId");
 
-                    b.ToTable("StockTransferItems", (string)null);
+                    b.ToTable("StockTransferItems");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Store", b =>
@@ -1280,7 +1219,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("StoreCategoryId");
 
-                    b.ToTable("Stores", (string)null);
+                    b.ToTable("Stores");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.StoreCategory", b =>
@@ -1325,76 +1264,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("StoreCategories", (string)null);
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SubscriptionPlanDefinition", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<decimal>("AnnualPrice")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateDeleted")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("DateUpdated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("MaxProducts")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("MaxStaff")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("MaxStores")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("MonthlyPrice")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Plan")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Plan")
-                        .IsUnique();
-
-                    b.ToTable("SubscriptionPlanDefinitions", (string)null);
+                    b.ToTable("StoreCategories");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Supplier", b =>
@@ -1449,7 +1319,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("BusinessId");
 
-                    b.ToTable("Suppliers", (string)null);
+                    b.ToTable("Suppliers");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.SupportRequest", b =>
@@ -1504,7 +1374,7 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SupportRequests", (string)null);
+                    b.ToTable("SupportRequests");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.User", b =>
@@ -1577,7 +1447,71 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("ReferralCode")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.UserSubscription", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("PlanEndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PlanStartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("TrialEndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("TrialStartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserSubscriptions");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>
@@ -1605,25 +1539,6 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("StaffRange");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessSubscription", b =>
-                {
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
-                        .WithMany()
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AutVent.CorePlatform.Domain.Entities.SubscriptionPlanDefinition", "SubscriptionPlan")
-                        .WithMany()
-                        .HasForeignKey("SubscriptionPlanId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Business");
-
-                    b.Navigation("SubscriptionPlan");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Customer", b =>
@@ -1872,6 +1787,17 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Business");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.UserSubscription", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>

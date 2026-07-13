@@ -129,6 +129,9 @@ using (var scope = app.Services.CreateScope())
 
     var permissionSeeder = scope.ServiceProvider.GetRequiredService<PermissionSeeder>();
     await permissionSeeder.SeedAsync();
+
+    var subscriptionPlanSeeder = scope.ServiceProvider.GetRequiredService<SubscriptionPlanSeeder>();
+    await subscriptionPlanSeeder.SeedAsync();
 }
 
 if (app.Environment.IsDevelopment())
