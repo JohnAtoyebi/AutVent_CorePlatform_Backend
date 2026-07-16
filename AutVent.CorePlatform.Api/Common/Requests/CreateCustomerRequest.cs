@@ -15,4 +15,7 @@ public sealed class CreateCustomerRequest
     [MaxLength(200)]
     [EmailAddress]
     public string? Email { get; init; }
+
+    [MaxLength(500)]
+    public string? Address { get; init; }
 }

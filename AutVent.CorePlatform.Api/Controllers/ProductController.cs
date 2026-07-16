@@ -58,6 +58,25 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet("generate-sku")]
+    [ProducesResponseType(typeof(ApiResponse<GenerateSkuResponse>), StatusCodes.Status200OK)]
+    public IActionResult GenerateSku([FromQuery] string? productName, CancellationToken cancellationToken)
+    {
+        var response = productService.GenerateSku(productName ?? string.Empty);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPatch("store/{storeId:long}/bulk-edit")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> BulkEdit(long storeId, [FromBody] BulkEditProductRequest request, CancellationToken cancellationToken)
+    {
+        var response = await productService.BulkEditAsync(request, CurrentUserId, storeId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpPut("store/{storeId:long}/{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ProductResponse>>), StatusCodes.Status400BadRequest)]
@@ -87,6 +106,28 @@ public class ProductController(IProductService productService, IUnitOfWork unitO
     public async Task<IActionResult> UpdateStatus(long id, [FromBody] UpdateProductStatusRequest request, CancellationToken cancellationToken)
     {
         var response = await productService.UpdateStatusAsync(id, request.IsActive, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPost("{id:long}/images")]
+    [RequestSizeLimit(50 * 1024 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadImages(long id, [FromForm] List<IFormFile> files, CancellationToken cancellationToken)
+    {
+        var response = await productService.UploadImagesAsync(id, files, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpDelete("{id:long}/images")]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteImage(long id, [FromQuery] string imageUrl, CancellationToken cancellationToken)
+    {
+        var response = await productService.DeleteImageAsync(id, imageUrl, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 }

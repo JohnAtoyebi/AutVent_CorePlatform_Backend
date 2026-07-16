@@ -1,0 +1,180 @@
+using AutVent.CorePlatform.Api.Common.Requests;
+using AutVent.CorePlatform.Api.Common.Responses;
+using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
+using AutVent.CorePlatform.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace AutVent.CorePlatform.Api.Services;
+
+public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
+{
+    public async Task<ApiResponse<BillingTransactionResponse>> CreateAsync(
+        long businessId,
+        CreateBillingTransactionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.Id == businessId && !x.IsDeleted, cancellationToken);
+
+        if (business is null)
+            return ApiResponse<BillingTransactionResponse>.Failed(
+                StatusCodes.Status404NotFound, "Business not found.");
+
+        var plan = await unitOfWork.Query<SubscriptionPlanDefinition>()
+            .FirstOrDefaultAsync(x => x.Id == request.SubscriptionPlanId && !x.IsDeleted, cancellationToken);
+
+        if (plan is null)
+            return ApiResponse<BillingTransactionResponse>.Failed(
+                StatusCodes.Status404NotFound, "Subscription plan not found.");
+
+        var duplicate = await unitOfWork.Query<BillingSubscriptionTransaction>()
+            .AnyAsync(x => x.TransactionReference == request.TransactionReference, cancellationToken);
+
+        if (duplicate)
+            return ApiResponse<BillingTransactionResponse>.Failed(
+                StatusCodes.Status409Conflict, "A transaction with this reference already exists.");
+
+        var transaction = new BillingSubscriptionTransaction
+        {
+            BusinessId = businessId,
+            SubscriptionPlanId = request.SubscriptionPlanId,
+            TransactionReference = request.TransactionReference,
+            ProviderReference = request.ProviderReference,
+            Amount = request.Amount,
+            Currency = request.Currency,
+            BillingCycle = request.BillingCycle,
+            VerificationStatus = TransactionVerificationStatus.Pending,
+            IsActive = true,
+            CreatedBy = businessId.ToString(),
+            DateCreated = DateTime.UtcNow
+        };
+
+        await unitOfWork.CreateAsync(transaction, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<BillingTransactionResponse>.Ok(MapToResponse(transaction, plan.Name));
+    }
+
+    public async Task<ApiResponse<BillingTransactionResponse>> VerifyAsync(
+        VerifyBillingTransactionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await unitOfWork.Query<BillingSubscriptionTransaction>()
+            .Include(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(x => x.TransactionReference == request.TransactionReference, cancellationToken);
+
+        if (transaction is null)
+            return ApiResponse<BillingTransactionResponse>.Failed(
+                StatusCodes.Status404NotFound, "Transaction not found.");
+
+        if (transaction.VerificationStatus == TransactionVerificationStatus.Verified)
+            return ApiResponse<BillingTransactionResponse>.Failed(
+                StatusCodes.Status409Conflict, "Transaction has already been verified.");
+
+        transaction.VerificationStatus = request.VerificationStatus;
+        transaction.FailureReason = request.FailureReason;
+        transaction.VerifiedAt = request.VerificationStatus == TransactionVerificationStatus.Verified
+            ? DateTime.UtcNow
+            : null;
+        transaction.DateUpdated = DateTime.UtcNow;
+        transaction.UpdatedBy = transaction.BusinessId.ToString();
+
+        unitOfWork.Update(transaction);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<BillingTransactionResponse>.Ok(MapToResponse(transaction, transaction.SubscriptionPlan.Name));
+    }
+
+    public async Task<ApiResponse<BillingTransactionResponse>> GetByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await unitOfWork.Query<BillingSubscriptionTransaction>()
+            .Include(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (transaction is null)
+            return ApiResponse<BillingTransactionResponse>.Failed(
+                StatusCodes.Status404NotFound, "Transaction not found.");
+
+        return ApiResponse<BillingTransactionResponse>.Ok(
+            MapToResponse(transaction, transaction.SubscriptionPlan.Name));
+    }
+
+    public async Task<ApiResponse<PagedResponse<BillingTransactionResponse>>> GetAllAsync(
+        long businessId,
+        PagedQueryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var query = unitOfWork.Query<BillingSubscriptionTransaction>()
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.BusinessId == businessId && !x.IsDeleted);
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(x =>
+                x.TransactionReference.ToLower().Contains(search) ||
+                (x.ProviderReference != null && x.ProviderReference.ToLower().Contains(search)));
+        }
+
+        if (request.Filters is not null &&
+            request.Filters.TryGetValue("verificationStatus", out var statusFilter) &&
+            Enum.TryParse<TransactionVerificationStatus>(statusFilter, ignoreCase: true, out var parsedStatus))
+        {
+            query = query.Where(x => x.VerificationStatus == parsedStatus);
+        }
+
+        if (request.Filters is not null &&
+            request.Filters.TryGetValue("billingCycle", out var cycleFilter) &&
+            Enum.TryParse<BillingCycle>(cycleFilter, ignoreCase: true, out var parsedCycle))
+        {
+            query = query.Where(x => x.BillingCycle == parsedCycle);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        query = request.SortBy?.ToLower() switch
+        {
+            "oldest" => query.OrderBy(x => x.Id),
+            _ => query.OrderByDescending(x => x.Id)
+        };
+
+        var items = await query
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .Select(x => MapToResponse(x, x.SubscriptionPlan.Name))
+            .ToListAsync(cancellationToken);
+
+        var paged = new PagedResponse<BillingTransactionResponse>
+        {
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize),
+            Items = items
+        };
+
+        return ApiResponse<PagedResponse<BillingTransactionResponse>>.Ok(paged);
+    }
+
+    private static BillingTransactionResponse MapToResponse(BillingSubscriptionTransaction t, string planName) =>
+        new()
+        {
+            Id = t.Id,
+            BusinessId = t.BusinessId,
+            SubscriptionPlanId = t.SubscriptionPlanId,
+            SubscriptionPlanName = planName,
+            TransactionReference = t.TransactionReference,
+            ProviderReference = t.ProviderReference,
+            Amount = t.Amount,
+            Currency = t.Currency,
+            BillingCycle = t.BillingCycle.ToString(),
+            VerificationStatus = t.VerificationStatus.ToString(),
+            FailureReason = t.FailureReason,
+            VerifiedAt = t.VerifiedAt,
+            DateCreated = t.DateCreated,
+            DateUpdated = t.DateUpdated
+        };
+}

@@ -21,7 +21,8 @@ public sealed class AuthenticationService(
     IConfiguration configuration,
     IEmailProvider emailProvider,
     IOptions<EmailOptions> emailOptions,
-    IOptions<AppOptions> appOptions) : IAuthenticationService
+    IOptions<AppOptions> appOptions,
+    IJwtTokenService jwtTokenService) : IAuthenticationService
 {
     private const string SystemActor = "system";
 
@@ -33,12 +34,12 @@ public sealed class AuthenticationService(
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
-        if (user is null)
+        if (user is null || !string.Equals(user.Password, hashedPassword, StringComparison.Ordinal))
         {
             return ApiResponse<SignInResponse>.Failed(
-                StatusCodes.Status404NotFound,
-                "User not found",
-                [new ApiError("UserNotFound", "No user found for this email", nameof(request.EmailAddress))]);
+                StatusCodes.Status401Unauthorized,
+                "Invalid credentials",
+                [new ApiError("InvalidCredentials", "Email or password is incorrect")]);
         }
 
         if (!user.IsActive)
@@ -49,30 +50,44 @@ public sealed class AuthenticationService(
                 [new ApiError("EmailNotVerified", "Verify your email before signing in", nameof(request.EmailAddress))]);
         }
 
-        if (!string.Equals(user.Password, hashedPassword, StringComparison.Ordinal))
-        {
-            return ApiResponse<SignInResponse>.Failed(
-                StatusCodes.Status401Unauthorized,
-                "Invalid credentials",
-                [new ApiError("InvalidCredentials", "Email or password is incorrect")]);
-        }
-
         var business = await unitOfWork.Query<Business>()
             .FirstOrDefaultAsync(x => x.UserId == user.Id, cancellationToken);
+
+        var (rawRefreshToken, refreshExpiresAt) = jwtTokenService.GenerateRefreshToken();
+
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = rawRefreshToken,
+            DateExpired = refreshExpiresAt,
+            IsUsed = false,
+            IsRevoked = false,
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = DateTime.UtcNow
+        };
+
+        await unitOfWork.CreateAsync(refreshToken, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var (accessToken, accessExpiresAt) = jwtTokenService.GenerateAccessTokenWithExpiry(user);
 
         var response = new SignInResponse
         {
             UserId = user.Id,
             FullName = user.FullName,
             EmailAddress = user.EmailAddress,
-            AccessToken = GenerateAccessToken(user),
+            AccessToken = accessToken,
+            AccessTokenExpiresAtUtc = accessExpiresAt,
+            RefreshToken = rawRefreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt,
             IsBusinessCreated = business == null ? false : true
         };
 
         return ApiResponse<SignInResponse>.Ok(response, "Sign in successful");
     }
 
-    public async Task<ApiResponse<ForgotPasswordResponse>> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<ForgotPasswordResponse>> SendResetLinkAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.EmailAddress.Trim().ToLowerInvariant();
         var now = DateTime.UtcNow;
@@ -87,20 +102,11 @@ public sealed class AuthenticationService(
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
-        if (user is null)
-        {
-            return ApiResponse<ForgotPasswordResponse>.Failed(
-                StatusCodes.Status404NotFound,
-                "User not found",
-                [new ApiError("UserNotFound", "No user found for this email", nameof(request.EmailAddress))]);
-        }
+        var silentResponse = new ForgotPasswordResponse { EmailAddress = normalizedEmail };
 
-        if (!user.IsActive)
+        if (user is null || !user.IsActive)
         {
-            return ApiResponse<ForgotPasswordResponse>.Failed(
-                StatusCodes.Status403Forbidden,
-                "Email is not verified",
-                [new ApiError("EmailNotVerified", "Verify your email before resetting password", nameof(request.EmailAddress))]);
+            return ApiResponse<ForgotPasswordResponse>.Ok(silentResponse, "If that email is registered, a reset link has been sent");
         }
 
         var activeTokens = await unitOfWork.Query<PasswordResetToken>()
@@ -145,8 +151,11 @@ public sealed class AuthenticationService(
             TokenExpiresAtUtc = expiresAt
         };
 
-        return ApiResponse<ForgotPasswordResponse>.Ok(response, "Password reset link has been sent to your email");
+        return ApiResponse<ForgotPasswordResponse>.Ok(response, "If that email is registered, a reset link has been sent");
     }
+
+    public Task<ApiResponse<ForgotPasswordResponse>> ResendResetLinkAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+        => SendResetLinkAsync(request, cancellationToken);
 
     public async Task<ApiResponse<ResetPasswordResponse>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
@@ -214,34 +223,62 @@ public sealed class AuthenticationService(
         return ApiResponse<ResetPasswordResponse>.Ok(response, "Password reset successful");
     }
 
-    private string GenerateAccessToken(User user)
+    public async Task<ApiResponse<RefreshTokenResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
     {
-        var jwt = configuration.GetSection("Jwt").Get<JwtOptions>()
-            ?? throw new InvalidOperationException("JWT settings are missing.");
+        var now = DateTime.UtcNow;
 
-        if (string.IsNullOrWhiteSpace(jwt.Key) || string.IsNullOrWhiteSpace(jwt.Issuer) || string.IsNullOrWhiteSpace(jwt.Audience))
+        var storedToken = await unitOfWork.Query<RefreshToken>()
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.Token == request.RefreshToken, cancellationToken);
+
+        if (storedToken is null)
         {
-            throw new InvalidOperationException("JWT settings are invalid.");
+            return ApiResponse<RefreshTokenResponse>.Failed(
+                StatusCodes.Status401Unauthorized,
+                "Invalid refresh token",
+                [new ApiError("InvalidRefreshToken", "The refresh token is invalid", nameof(request.RefreshToken))]);
         }
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var claims = new List<Claim>
+        if (storedToken.IsUsed || storedToken.IsRevoked || storedToken.DateExpired <= now)
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.EmailAddress),
-            new(JwtRegisteredClaimNames.Name, user.FullName),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            return ApiResponse<RefreshTokenResponse>.Failed(
+                StatusCodes.Status401Unauthorized,
+                "Refresh token has expired or already been used",
+                [new ApiError("ExpiredRefreshToken", "Please sign in again", nameof(request.RefreshToken))]);
+        }
+
+        storedToken.IsUsed = true;
+        storedToken.IsActive = false;
+        storedToken.DateUpdated = now;
+        storedToken.UpdatedBy = SystemActor;
+        unitOfWork.Update(storedToken);
+
+        var (rawRefreshToken, refreshExpiresAt) = jwtTokenService.GenerateRefreshToken();
+
+        var newRefreshToken = new RefreshToken
+        {
+            UserId = storedToken.UserId,
+            Token = rawRefreshToken,
+            DateExpired = refreshExpiresAt,
+            IsUsed = false,
+            IsRevoked = false,
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = now
         };
 
-        var token = new JwtSecurityToken(
-            issuer: jwt.Issuer,
-            audience: jwt.Audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(jwt.ExpiryMinutes <= 0 ? 60 : jwt.ExpiryMinutes),
-            signingCredentials: credentials);
+        await unitOfWork.CreateAsync(newRefreshToken, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var response = new RefreshTokenResponse
+        {
+            AccessToken = GenerateAccessToken(storedToken.User),
+            RefreshToken = rawRefreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt
+        };
+
+        return ApiResponse<RefreshTokenResponse>.Ok(response, "Token refreshed successfully");
     }
+
+    private string GenerateAccessToken(User user) => jwtTokenService.GenerateAccessToken(user);
 }

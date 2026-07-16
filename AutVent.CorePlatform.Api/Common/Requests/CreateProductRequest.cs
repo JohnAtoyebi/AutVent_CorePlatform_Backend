@@ -11,6 +11,7 @@ public sealed class CreateProductVariantRequest
     public string? Sku { get; init; }
 
     [MaxLength(50)]
+    [RegularExpression(@"^[\d,]+(\.\d+)?$", ErrorMessage = "Price must contain numbers only (e.g. 1000 or 1,000.50)")]
     public string? Price { get; init; }
 
     [Range(0, long.MaxValue)]
@@ -25,6 +26,7 @@ public sealed class CreateProductRequest
 
     [Required]
     [MaxLength(50)]
+    [RegularExpression(@"^[\d,]+(\.\d+)?$", ErrorMessage = "Price must contain numbers only (e.g. 1000 or 1,000.50)")]
     public string Price { get; init; } = string.Empty;
 
     [Range(1, long.MaxValue)]
@@ -43,9 +45,11 @@ public sealed class CreateProductRequest
     public string? Barcode { get; init; }
 
     [MaxLength(50)]
+    [RegularExpression(@"^[\d,]+(\.\d+)?$", ErrorMessage = "Cost price must contain numbers only (e.g. 1000 or 1,000.50)")]
     public string? CostPrice { get; init; }
 
     [MaxLength(50)]
+    [RegularExpression(@"^[\d,]+(\.\d+)?$", ErrorMessage = "Compare at price must contain numbers only (e.g. 1000 or 1,000.50)")]
     public string? CompareAtPrice { get; init; }
 
     public List<string>? ProductImages { get; init; }
@@ -73,6 +77,6 @@ public sealed class CreateProductRequest
     [Range(0, double.MaxValue)]
     public decimal? Weight { get; init; }
 
-    [MaxLength(200)]
-    public string? Supplier { get; init; }
+    [Range(1, long.MaxValue)]
+    public long? SupplierId { get; init; }
 }

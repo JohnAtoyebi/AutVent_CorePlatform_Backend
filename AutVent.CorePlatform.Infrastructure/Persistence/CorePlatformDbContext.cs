@@ -9,6 +9,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Otp> Otps => Set<Otp>();
     public DbSet<Business> Businesses => Set<Business>();
     public DbSet<BusinessIndustry> BusinessIndustries => Set<BusinessIndustry>();
+    public DbSet<StaffRange> StaffRanges => Set<StaffRange>();
     public DbSet<Store> Stores => Set<Store>();
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
@@ -17,7 +18,22 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ReferralRecord> ReferralRecords => Set<ReferralRecord>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Staff> Staff => Set<Staff>();
+    public DbSet<StaffStoreAccess> StaffStoreAccess => Set<StaffStoreAccess>();
+    public DbSet<SupportRequest> SupportRequests => Set<SupportRequest>();
+    public DbSet<SubscriptionPlanDefinition> SubscriptionPlanDefinitions => Set<SubscriptionPlanDefinition>();
+    public DbSet<BusinessSubscription> BusinessSubscriptions => Set<BusinessSubscription>();
+    public DbSet<BillingSubscriptionTransaction> BillingSubscriptionTransactions => Set<BillingSubscriptionTransaction>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -43,7 +59,6 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         modelBuilder.Entity<Business>(entity =>
         {
             entity.Property(x => x.BusinessName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.StaffRange).HasMaxLength(50).IsRequired();
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -54,6 +69,17 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.BusinessIndustryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.StaffRange)
+                .WithMany(x => x.Businesses)
+                .HasForeignKey(x => x.StaffRangeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StaffRange>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(50).IsRequired();
+            entity.HasIndex(x => x.Name).IsUnique();
         });
 
         modelBuilder.Entity<BusinessIndustry>(entity =>
@@ -97,7 +123,12 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.ProductImagesJson);
             entity.Property(x => x.ProductVariantsJson);
             entity.Property(x => x.TagsJson);
-            entity.Property(x => x.Supplier).HasMaxLength(200);
+
+            entity.HasOne<Supplier>(x => x.Supplier)
+                .WithMany()
+                .HasForeignKey(x => x.SupplierId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(x => x.ProductCategory)
                 .WithMany()
@@ -127,6 +158,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Email).HasMaxLength(200);
+            entity.Property(x => x.Address).HasMaxLength(500);
             entity.HasIndex(x => new { x.PhoneNumber, x.StoreId }).IsUnique();
             entity.HasIndex(x => new { x.Email, x.StoreId }).IsUnique();
 
@@ -169,6 +201,41 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<Invoice>(entity =>
+        {
+            entity.Property(x => x.InvoiceNumber).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PaymentTerms).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.DiscountType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.VatRate).HasColumnType("decimal(5,2)");
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.HasIndex(x => x.InvoiceNumber).IsUnique();
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<InvoiceItem>(entity =>
+        {
+            entity.HasOne(x => x.Invoice)
+                .WithMany(x => x.InvoiceItems)
+                .HasForeignKey(x => x.InvoiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Product)
+                .WithMany()
+                .HasForeignKey(x => x.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         ConfigureBaseEntityProperties(modelBuilder);
 
         modelBuilder.Entity<ReferralRecord>(entity =>
@@ -184,6 +251,178 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.HasOne(x => x.ReferredUser)
                 .WithMany()
                 .HasForeignKey(x => x.ReferredUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.Property(x => x.Token).HasMaxLength(200).IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StockTransfer>(entity =>
+        {
+            entity.Property(x => x.TransferNumber).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(500);
+
+            entity.HasOne(x => x.SourceStore)
+                .WithMany()
+                .HasForeignKey(x => x.SourceStoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.DestinationStore)
+                .WithMany()
+                .HasForeignKey(x => x.DestinationStoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(x => x.Items)
+                .WithOne(x => x.StockTransfer)
+                .HasForeignKey(x => x.StockTransferId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StockTransferItem>(entity =>
+        {
+            entity.Property(x => x.Notes).HasMaxLength(500);
+
+            entity.HasOne(x => x.SourceProduct)
+                .WithMany()
+                .HasForeignKey(x => x.SourceProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.DestinationProduct)
+                .WithMany()
+                .HasForeignKey(x => x.DestinationProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.ToTable("Roles");
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(300);
+            entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(300);
+            entity.Property(x => x.Group).HasMaxLength(100).IsRequired();
+            entity.HasIndex(x => x.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<RolePermission>(entity =>
+        {
+            entity.HasOne(x => x.Role)
+                .WithMany(x => x.RolePermissions)
+                .HasForeignKey(x => x.RoleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Permission)
+                .WithMany(x => x.RolePermissions)
+                .HasForeignKey(x => x.PermissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Staff>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.EmailAddress).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20);
+            entity.Property(x => x.Notes).HasMaxLength(500);
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Role)
+                .WithMany(x => x.StaffMembers)
+                .HasForeignKey(x => x.RoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(x => x.StoreAccess)
+                .WithOne(x => x.Staff)
+                .HasForeignKey(x => x.StaffId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StaffStoreAccess>(entity =>
+        {
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(x => new { x.StaffId, x.StoreId }).IsUnique();
+        });
+
+        modelBuilder.Entity<SupportRequest>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Message).HasMaxLength(2000).IsRequired();
+        });
+
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ContactEmail).HasMaxLength(200);
+            entity.Property(x => x.ContactPhone).HasMaxLength(30);
+        });
+
+        modelBuilder.Entity<SubscriptionPlanDefinition>(entity =>
+        {
+            entity.Property(x => x.Plan).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.MonthlyPrice).HasColumnType("decimal(18,2)");
+            entity.Property(x => x.AnnualPrice).HasColumnType("decimal(18,2)");
+            entity.HasIndex(x => x.Plan).IsUnique();
+        });
+
+        modelBuilder.Entity<BusinessSubscription>(entity =>
+        {
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired();
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.SubscriptionPlan)
+                .WithMany()
+                .HasForeignKey(x => x.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillingSubscriptionTransaction>(entity =>
+        {
+            entity.Property(x => x.TransactionReference).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ProviderReference).HasMaxLength(100);
+            entity.Property(x => x.Amount).HasColumnType("decimal(18,2)").IsRequired();
+            entity.Property(x => x.Currency).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.BillingCycle).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.VerificationStatus).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.FailureReason).HasMaxLength(500);
+
+            entity.HasIndex(x => x.TransactionReference).IsUnique();
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.SubscriptionPlan)
+                .WithMany()
+                .HasForeignKey(x => x.SubscriptionPlanId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

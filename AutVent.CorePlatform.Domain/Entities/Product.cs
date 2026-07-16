@@ -23,5 +23,6 @@ public class Product : BaseEntity
     public bool? ApplyToAllStoreLocations { get; set; }
     public string? TagsJson { get; set; }
     public decimal? Weight { get; set; }
-    public string? Supplier { get; set; }
+    public long? SupplierId { get; set; }
+    public virtual Supplier? Supplier { get; set; }
 }

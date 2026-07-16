@@ -1,6 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Services;
+using AutVent.CorePlatform.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -39,5 +42,20 @@ public class InventoryController(IInventoryService inventoryService) : ApiContro
     {
         var response = await inventoryService.UpdateStockAsync(productId, request, CurrentUserId, storeId, cancellationToken);
         return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("stock-adjustment-reasons")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<EnumLookupResponse>>), StatusCodes.Status200OK)]
+    public IActionResult GetStockAdjustmentReasons()
+    {
+        var reasons = Enum.GetValues<StockAdjustmentReason>()
+            .Select(r =>
+            {
+                var memberInfo = typeof(StockAdjustmentReason).GetMember(r.ToString()).FirstOrDefault();
+                var label = memberInfo?.GetCustomAttribute<DisplayAttribute>()?.Name ?? r.ToString();
+                return new EnumLookupResponse { Value = (int)r, Label = label };
+            });
+
+        return Ok(ApiResponse<IEnumerable<EnumLookupResponse>>.Ok(reasons));
     }
 }

@@ -1,29 +1,23 @@
+using AutVent.CorePlatform.Api.Common.Email;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
+using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
+public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions) : IBusinessService
 {
     private const string SystemActor = "system";
-    private static readonly IReadOnlyList<string> ValidStaffRanges = ["1-10", "11-50", "51-200", "200+"];
 
     public async Task<ApiResponse<CreateBusinessResponse>> CreateAsync(CreateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var businessName = request.Name.Trim();
-        var staffRange = request.StaffRange.Trim();
         var now = DateTime.UtcNow;
-
-        if (!ValidStaffRanges.Contains(staffRange))
-        {
-            return ApiResponse<CreateBusinessResponse>.Failed(
-                StatusCodes.Status400BadRequest,
-                "Invalid staff range",
-                [new ApiError("InvalidStaffRange", $"Staff range must be one of: {string.Join(", ", ValidStaffRanges)}", nameof(request.StaffRange))]);
-        }
 
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
@@ -66,10 +60,21 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
                 [new ApiError("InvalidIndustry", "Industry does not exists", nameof(request.IndustryId))]);
         }
 
+        var staffRange = await unitOfWork.Query<StaffRange>()
+            .FirstOrDefaultAsync(x => x.Id == request.StaffRangeId, cancellationToken);
+
+        if (staffRange is null)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Invalid staff range",
+                [new ApiError("InvalidStaffRange", "Staff range not found", nameof(request.StaffRangeId))]);
+        }
+
         var business = new Business
         {
             BusinessName = businessName,
-            StaffRange = staffRange,
+            StaffRangeId = staffRange.Id,
             UserId = user.Id,
             BusinessIndustry = industry,
             IsActive = true,
@@ -78,9 +83,30 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         };
 
         await unitOfWork.CreateAsync(business, cancellationToken);
+
+        await emailProvider.SendAsync(
+            EmailTemplates.BusinessWelcome(user.EmailAddress, user.FullName, businessName, emailOptions),
+            cancellationToken);
+
+        var starterPlan = await unitOfWork.Query<SubscriptionPlanDefinition>()
+            .FirstAsync(x => x.Plan == SubscriptionPlan.Starter, cancellationToken);
+
+        var subscription = new BusinessSubscription
+        {
+            Business = business,
+            SubscriptionPlanId = starterPlan.Id,
+            Status = SubscriptionStatus.Trial,
+            TrialStartDate = now,
+            TrialEndDate = now.AddDays(30),
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = now
+        };
+        await unitOfWork.CreateAsync(subscription, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var response = MapToResponse(business, industry.Name);
+        var response = MapToResponse(business, industry.Name, staffRange.Name);
         return ApiResponse<CreateBusinessResponse>.Created(response, "Business created successfully");
     }
 
@@ -88,6 +114,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
     {
         var business = await unitOfWork.Query<Business>()
             .Include(x => x.BusinessIndustry)
+            .Include(x => x.StaffRange)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (business is null)
@@ -98,13 +125,14 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
                 [new ApiError("BusinessNotFound", "No business found for this id", nameof(id))]);
         }
 
-        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
+        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name));
     }
 
     public async Task<ApiResponse<CreateBusinessResponse>> GetByUserIdAsync(long userId, CancellationToken cancellationToken = default)
     {
         var business = await unitOfWork.Query<Business>()
             .Include(x => x.BusinessIndustry)
+            .Include(x => x.StaffRange)
             .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
 
         if (business is null)
@@ -115,7 +143,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
                 [new ApiError("BusinessNotFound", "No business found for this user", nameof(userId))]);
         }
 
-        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name));
+        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name));
     }
 
     public async Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
@@ -125,6 +153,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
 
         var query = unitOfWork.Query<Business>()
             .Include(x => x.BusinessIndustry)
+            .Include(x => x.StaffRange)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -132,7 +161,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
             var search = request.Search.Trim().ToLower();
             query = query.Where(x =>
                 x.BusinessName.ToLower().Contains(search) ||
-                x.StaffRange.ToLower().Contains(search) ||
+                x.StaffRange.Name.ToLower().Contains(search) ||
                 x.BusinessIndustry.Name.ToLower().Contains(search));
         }
 
@@ -152,7 +181,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
             if (request.Filters.TryGetValue("staffRange", out var staffRange) && !string.IsNullOrWhiteSpace(staffRange))
             {
                 var staffRangeFilter = staffRange.Trim().ToLower();
-                query = query.Where(x => x.StaffRange.ToLower() == staffRangeFilter);
+                query = query.Where(x => x.StaffRange.Name.ToLower() == staffRangeFilter);
             }
 
             if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
@@ -171,7 +200,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
                 BusinessId = x.Id,
                 Name = x.BusinessName,
                 Industry = x.BusinessIndustry.Name,
-                StaffRange = x.StaffRange
+                StaffRange = x.StaffRange.Name
             })
             .ToListAsync(cancellationToken);
 
@@ -187,11 +216,11 @@ public sealed class BusinessService(IUnitOfWork unitOfWork) : IBusinessService
         return ApiResponse<PagedResponse<CreateBusinessResponse>>.Ok(paged);
     }
 
-    private static CreateBusinessResponse MapToResponse(Business business, string industry) => new()
+    private static CreateBusinessResponse MapToResponse(Business business, string industry, string staffRange) => new()
     {
         BusinessId = business.Id,
         Name = business.BusinessName,
         Industry = industry,
-        StaffRange = business.StaffRange
+        StaffRange = staffRange
     };
 }

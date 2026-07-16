@@ -2,13 +2,14 @@ using System.Text.Json;
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
+public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService) : IProductService
 {
     private const string SystemActor = "system";
 
@@ -73,7 +74,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ApplyToAllStoreLocations = x.ApplyToAllStoreLocations,
                 Tags = NormalizeStringList(x.Tags),
                 Weight = x.Weight,
-                Supplier = NormalizeNullableString(x.Supplier)
+                SupplierId = x.SupplierId
             })
             .ToList();
 
@@ -119,7 +120,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                     x.ApplyToAllStoreLocations,
                     x.Tags,
                     x.Weight,
-                    x.Supplier,
+                    x.SupplierId,
                     TargetStoreId = targetStoreId
                 });
             })
@@ -161,7 +162,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .ToHashSet();
 
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId))
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && requestStoreIds.Contains(x.StoreId) && !x.IsDeleted)
             .Select(x => new { x.Name, x.StoreId })
             .ToListAsync(cancellationToken);
 
@@ -198,6 +199,44 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 missingCategoryIds.Select(id => new ApiError("InvalidCategory", $"Product category with id {id} does not exist", nameof(CreateProductRequest.ProductCategoryId))));
         }
 
+        var invalidThresholds = expandedRequests
+            .Where(x => x.ReorderThreshold.HasValue && x.ReorderThreshold.Value >= x.Quantity)
+            .ToArray();
+
+        if (invalidThresholds.Length > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Reorder threshold must be less than the stock quantity",
+                invalidThresholds.Select(x => new ApiError(
+                    "InvalidReorderThreshold",
+                    $"Reorder threshold ({x.ReorderThreshold}) must be less than the stock quantity ({x.Quantity}) for product '{x.Name}'",
+                    nameof(CreateProductRequest.ReorderThreshold))));
+        }
+
+        var requestedSupplierIds = expandedRequests
+            .Where(x => x.SupplierId.HasValue)
+            .Select(x => x.SupplierId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (requestedSupplierIds.Length > 0)
+        {
+            var validSupplierIds = await unitOfWork.Query<Supplier>()
+                .Where(x => requestedSupplierIds.Contains(x.Id))
+                .Select(x => x.Id)
+                .ToHashSetAsync(cancellationToken);
+
+            var invalidSupplierIds = requestedSupplierIds.Where(id => !validSupplierIds.Contains(id)).ToArray();
+            if (invalidSupplierIds.Length > 0)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "One or more supplier IDs are invalid",
+                    invalidSupplierIds.Select(id => new ApiError("InvalidSupplier", $"Supplier with id {id} does not exist or does not belong to your business", nameof(CreateProductRequest.SupplierId))));
+            }
+        }
+
         var products = expandedRequests
             .Select(x => new Product
             {
@@ -208,13 +247,13 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ProductCategoryId = x.ProductCategoryId,
                 ProductCategory = categoryMap[x.ProductCategoryId],
                 Description = x.Description,
-                Sku = x.Sku ?? GenerateSku(x.Name),
+                Sku = x.Sku ?? GenerateSkuInternal(x.Name),
                 Barcode = x.Barcode,
                 CostPrice = x.CostPrice,
                 CompareAtPrice = x.CompareAtPrice,
                 ProductImagesJson = SerializeStringList(x.ProductImages),
                 ProductVariantsEnabled = x.ProductVariantsEnabled,
-                ProductVariantsJson = SerializeVariants(x.ProductVariants),
+                ProductVariantsJson = x.ProductVariantsEnabled == true ? SerializeVariants(x.ProductVariants) : null,
                 IsActive = x.ActiveProduct ?? true,
                 AvailableOnPos = x.AvailableOnPos ?? true,
                 AvailableOnAutShop = x.AvailableOnAutShop ?? true,
@@ -222,7 +261,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 ApplyToAllStoreLocations = x.ApplyToAllStoreLocations,
                 TagsJson = SerializeStringList(x.Tags),
                 Weight = x.Weight,
-                Supplier = x.Supplier,
+                SupplierId = x.SupplierId,
                 CreatedBy = SystemActor,
                 DateCreated = now
             })
@@ -432,7 +471,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         // Check if products already exist in store
         var existingNames = await unitOfWork.Query<Product>()
-            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId)
+            .Where(x => requestNames.Contains(x.Name.ToLower()) && x.StoreId == storeId && !x.IsDeleted)
             .Select(x => x.Name)
             .ToListAsync(cancellationToken);
 
@@ -457,7 +496,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                     StoreId = storeId,
                     ProductCategoryId = matchedCategory.Id,
                     ProductCategory = matchedCategory,
-                    Sku = GenerateSku(x.Name),
+                    Sku = GenerateSkuInternal(x.Name),
                     IsActive = true,
                     AvailableOnPos = true,
                     AvailableOnAutShop = true,
@@ -489,7 +528,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -519,7 +558,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .Where(x => x.Store.Business.UserId == userId)
+            .Where(x => x.Store.Business.UserId == userId && !x.IsDeleted)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -579,8 +618,21 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var totalCount = await query.CountAsync(cancellationToken);
 
+        var sortBy = Enum.TryParse<ProductSortBy>(request.SortBy, true, out var parsedSort)
+            ? parsedSort
+            : ProductSortBy.Newest;
+
+        query = sortBy switch
+        {
+            ProductSortBy.Oldest      => query.OrderBy(x => x.Id),
+            ProductSortBy.NameAsc     => query.OrderBy(x => x.Name),
+            ProductSortBy.NameDesc    => query.OrderByDescending(x => x.Name),
+            ProductSortBy.QuantityAsc => query.OrderBy(x => x.Quantity),
+            ProductSortBy.QuantityDesc => query.OrderByDescending(x => x.Quantity),
+            _                         => query.OrderByDescending(x => x.Id)
+        };
+
         var records = await query
-            .OrderBy(x => x.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -601,7 +653,13 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         return ApiResponse<PagedResponse<ProductResponse>>.Ok(paged);
     }
 
-    private static string GenerateSku(string productName)
+    public ApiResponse<GenerateSkuResponse> GenerateSku(string productName)
+    {
+        var sku = GenerateSkuInternal(productName.Trim());
+        return ApiResponse<GenerateSkuResponse>.Ok(new GenerateSkuResponse { Sku = sku });
+    }
+
+    private static string GenerateSkuInternal(string productName)
     {
         var prefix = new string(productName
             .Where(char.IsLetterOrDigit)
@@ -611,15 +669,33 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            prefix = "PRD";
+            prefix = "AUT";
         }
 
-        var suffix = Guid.NewGuid().ToString("N").ToUpperInvariant();
-        return $"{prefix}{suffix}"[..10];
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+        var mid = new string(Enumerable.Range(0, 4).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+        var end = new string(Enumerable.Range(0, 3).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+
+        return $"{prefix}-{mid}-{end}";
     }
 
     private static string NormalizePriceString(string value)
         => value.Replace(",", string.Empty).Trim();
+
+    private static decimal? CalculateProfitMargin(string price, string? costPrice)
+    {
+        if (string.IsNullOrWhiteSpace(costPrice))
+            return null;
+
+        if (!decimal.TryParse(NormalizePriceString(price), out var sellingPrice) || sellingPrice <= 0)
+            return null;
+
+        if (!decimal.TryParse(NormalizePriceString(costPrice), out var cost))
+            return null;
+
+        return Math.Round((sellingPrice - cost) / sellingPrice * 100, 2);
+    }
 
     private static string? NormalizeNullablePriceString(string? value)
     {
@@ -674,6 +750,118 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
     private static string? SerializeStringList(List<string>? items)
         => items is null ? null : JsonSerializer.Serialize(items);
 
+    public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> BulkEditAsync(BulkEditProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
+    {
+        if (request.ProductIds.Count == 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "At least one product ID is required",
+                [new ApiError("EmptyProductIds", "ProductIds must contain at least one item", nameof(request.ProductIds))]);
+        }
+
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
+
+        if (store is null || store.Business.UserId != userId)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this store",
+                [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(storeId))]);
+        }
+
+        var products = await unitOfWork.Query<Product>()
+            .Include(x => x.ProductCategory)
+            .Where(x => request.ProductIds.Contains(x.Id) && x.StoreId == storeId && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var missingIds = request.ProductIds.Except(products.Select(x => x.Id)).ToList();
+        if (missingIds.Count > 0)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "One or more products not found in this store",
+                missingIds.Select(id => new ApiError("ProductNotFound", $"Product with id {id} not found in this store", nameof(request.ProductIds))));
+        }
+
+        ProductCategory? newCategory = null;
+        if (request.ProductCategoryId.HasValue)
+        {
+            newCategory = await unitOfWork.Query<ProductCategory>()
+                .FirstOrDefaultAsync(x => x.Id == request.ProductCategoryId.Value, cancellationToken);
+
+            if (newCategory is null)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Product category not found",
+                    [new ApiError("CategoryNotFound", "No category found for the provided id", nameof(request.ProductCategoryId))]);
+            }
+        }
+
+        if (request.PriceAdjustment is not null &&
+            (request.PriceAdjustment.Type == PriceAdjustmentType.PercentageIncrease ||
+             request.PriceAdjustment.Type == PriceAdjustmentType.PercentageDecrease) &&
+            request.PriceAdjustment.Value > 100)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Percentage adjustment cannot exceed 100",
+                [new ApiError("InvalidPercentage", "Percentage value must be between 0.01 and 100", nameof(request.PriceAdjustment.Value))]);
+        }
+
+        var now = DateTime.UtcNow;
+
+        foreach (var product in products)
+        {
+            if (request.ProductCategoryId.HasValue && newCategory is not null)
+            {
+                product.ProductCategoryId = newCategory.Id;
+                product.ProductCategory = newCategory;
+            }
+
+            if (request.IsActive.HasValue)
+                product.IsActive = request.IsActive.Value;
+
+            if (request.AvailableOnPos.HasValue)
+                product.AvailableOnPos = request.AvailableOnPos.Value;
+
+            if (request.SupplierId.HasValue)
+                product.SupplierId = request.SupplierId;
+
+            if (request.PriceAdjustment is not null &&
+                decimal.TryParse(NormalizePriceString(product.Price), out var currentPrice))
+            {
+                var adjustment = request.PriceAdjustment;
+                var newPrice = adjustment.Type switch
+                {
+                    PriceAdjustmentType.FixedIncrease      => currentPrice + adjustment.Value,
+                    PriceAdjustmentType.FixedDecrease      => currentPrice - adjustment.Value,
+                    PriceAdjustmentType.PercentageIncrease => currentPrice * (1 + adjustment.Value / 100),
+                    PriceAdjustmentType.PercentageDecrease => currentPrice * (1 - adjustment.Value / 100),
+                    _ => currentPrice
+                };
+
+                if (newPrice > 0)
+                    product.Price = Math.Round(newPrice, 2).ToString("F2");
+            }
+
+            product.DateUpdated = now;
+            product.UpdatedBy = SystemActor;
+            unitOfWork.Update(product);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var updated = products
+            .Select(x => MapToResponse(x, x.ProductCategory.Name))
+            .ToList();
+
+        return ApiResponse<IReadOnlyCollection<ProductResponse>>.Ok(updated, $"{updated.Count} product(s) updated successfully");
+    }
+
     private static string? SerializeVariants(List<CreateProductVariantRequest>? variants)
         => variants is null ? null : JsonSerializer.Serialize(variants);
 
@@ -706,7 +894,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         ApplyToAllStoreLocations = product.ApplyToAllStoreLocations,
         Tags = DeserializeStringList(product.TagsJson),
         Weight = product.Weight,
-        Supplier = product.Supplier
+        SupplierId = product.SupplierId,
+        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice)
     };
 
     public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> UpdateAsync(long id, CreateProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
@@ -715,7 +904,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -761,11 +950,12 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 .Where(x =>
                     x.Store.BusinessId == product.Store.BusinessId &&
                     targetStoreIds.Contains(x.StoreId) &&
-                    x.Name.ToLower() == product.Name.ToLower())
+                    x.Name.ToLower() == product.Name.ToLower() &&
+                    !x.IsDeleted)
                 .ToListAsync(cancellationToken)
             : await unitOfWork.Query<Product>()
                 .Include(x => x.ProductCategory)
-                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId))
+                .Where(x => x.Id == id && targetStoreIds.Contains(x.StoreId) && !x.IsDeleted)
                 .ToListAsync(cancellationToken);
 
         if (targetProducts.Count == 0)
@@ -782,6 +972,14 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 StatusCodes.Status400BadRequest,
                 "Product quantity must be greater than 0",
                 [new ApiError("InvalidQuantity", "Quantity must be greater than 0", nameof(request.Quantity))]);
+        }
+
+        if (request.ReorderThreshold.HasValue && request.ReorderThreshold.Value >= request.Quantity)
+        {
+            return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                StatusCodes.Status400BadRequest,
+                "Reorder threshold must be less than the stock quantity",
+                [new ApiError("InvalidReorderThreshold", $"Reorder threshold ({request.ReorderThreshold}) must be less than the stock quantity ({request.Quantity})", nameof(request.ReorderThreshold))]);
         }
 
         var normalizedName = request.Name.Trim();
@@ -805,7 +1003,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             .Where(x =>
                 targetStoreIdSet.Contains(x.StoreId) &&
                 x.Name.ToLower() == normalizedName.ToLower() &&
-                !targetProductIds.Contains(x.Id))
+                !targetProductIds.Contains(x.Id) &&
+                !x.IsDeleted)
             .Select(x => new { x.StoreId, x.Name })
             .ToListAsync(cancellationToken);
 
@@ -822,10 +1021,23 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var normalizedBarcode = NormalizeNullableString(request.Barcode);
         var normalizedCostPrice = NormalizeNullablePriceString(request.CostPrice);
         var normalizedCompareAtPrice = NormalizeNullablePriceString(request.CompareAtPrice);
-        var normalizedSupplier = NormalizeNullableString(request.Supplier);
         var normalizedImages = NormalizeStringList(request.ProductImages);
         var normalizedVariants = NormalizeVariants(request.ProductVariants);
         var normalizedTags = NormalizeStringList(request.Tags);
+
+        if (request.SupplierId.HasValue)
+        {
+            var supplierExists = await unitOfWork.Query<Supplier>()
+                .AnyAsync(x => x.Id == request.SupplierId.Value, cancellationToken);
+
+            if (!supplierExists)
+            {
+                return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
+                    StatusCodes.Status404NotFound,
+                    "Supplier not found",
+                    [new ApiError("InvalidSupplier", $"Supplier with id {request.SupplierId} does not exist or does not belong to your business", nameof(request.SupplierId))]);
+            }
+        }
 
         var now = DateTime.UtcNow;
         foreach (var targetProduct in targetProducts)
@@ -839,7 +1051,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             if (request.Description is not null)
                 targetProduct.Description = normalizedDescription;
 
-            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSku(normalizedName);
+            targetProduct.Sku = normalizedSku ?? targetProduct.Sku ?? GenerateSkuInternal(normalizedName);
 
             if (request.Barcode is not null)
                 targetProduct.Barcode = normalizedBarcode;
@@ -854,9 +1066,15 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
                 targetProduct.ProductImagesJson = SerializeStringList(normalizedImages);
 
             if (request.ProductVariantsEnabled.HasValue)
+            {
                 targetProduct.ProductVariantsEnabled = request.ProductVariantsEnabled;
 
-            if (request.ProductVariants is not null)
+                if (request.ProductVariantsEnabled == false)
+                    targetProduct.ProductVariantsJson = null;
+                else if (request.ProductVariants is not null)
+                    targetProduct.ProductVariantsJson = SerializeVariants(normalizedVariants);
+            }
+            else if (request.ProductVariants is not null && targetProduct.ProductVariantsEnabled == true)
                 targetProduct.ProductVariantsJson = SerializeVariants(normalizedVariants);
 
             if (request.ActiveProduct.HasValue)
@@ -880,8 +1098,8 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
             if (request.Weight.HasValue)
                 targetProduct.Weight = request.Weight;
 
-            if (request.Supplier is not null)
-                targetProduct.Supplier = normalizedSupplier;
+            if (request.SupplierId.HasValue)
+                targetProduct.SupplierId = request.SupplierId;
 
             targetProduct.DateUpdated = now;
             targetProduct.UpdatedBy = SystemActor;
@@ -927,6 +1145,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var now = DateTime.UtcNow;
         product.IsActive = false;
+        product.IsDeleted = true;
         product.DateDeleted = now;
         product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
@@ -942,7 +1161,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
         var product = await unitOfWork.Query<Product>()
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (product is null)
         {
@@ -968,7 +1187,6 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var now = DateTime.UtcNow;
         product.IsActive = isActive;
-        product.DateDeleted = isActive ? null : now;
         product.DateUpdated = now;
         product.UpdatedBy = SystemActor;
 
@@ -977,5 +1195,130 @@ public sealed class ProductService(IUnitOfWork unitOfWork) : IProductService
 
         var successMessage = isActive ? "Product activated successfully" : "Product deactivated successfully";
         return ApiResponse<bool>.Ok(true, successMessage);
+    }
+
+    public async Task<ApiResponse<ProductResponse>> UploadImagesAsync(long id, IReadOnlyCollection<IFormFile> files, long userId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .Include(x => x.ProductCategory)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        if (files.Count == 0)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "At least one image file is required",
+                [new ApiError("NoFiles", "Provide one or more image files", nameof(files))]);
+        }
+
+        var existingUrls = DeserializeStringList(product.ProductImagesJson) ?? [];
+
+        var uploadTasks = files.Select(file => imageService.UploadAsync(file, userId, ImageType.Product, cancellationToken));
+        var uploadResults = await Task.WhenAll(uploadTasks);
+
+        var newUrls = existingUrls.Concat(uploadResults.Select(r => r.Url)).ToList();
+        product.ProductImagesJson = SerializeStringList(newUrls);
+        product.DateUpdated = DateTime.UtcNow;
+        product.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(product);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<ProductResponse>.Ok(MapToResponse(product, product.ProductCategory.Name), "Images uploaded successfully");
+    }
+
+    public async Task<ApiResponse<ProductResponse>> DeleteImageAsync(long id, string imageUrl, long userId, CancellationToken cancellationToken = default)
+    {
+        var product = await unitOfWork.Query<Product>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .Include(x => x.ProductCategory)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (product is null)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Product not found",
+                [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
+        }
+
+        if (product.Store.Business.UserId != userId)
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this product",
+                [new ApiError("UnauthorizedProduct", "This product does not belong to your business", nameof(id))]);
+        }
+
+        var existingUrls = DeserializeStringList(product.ProductImagesJson) ?? [];
+
+        if (!existingUrls.Contains(imageUrl))
+        {
+            return ApiResponse<ProductResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Image not found on this product",
+                [new ApiError("ImageNotFound", "The specified image URL does not exist on this product", nameof(imageUrl))]);
+        }
+
+        var publicId = ExtractCloudinaryPublicId(imageUrl);
+        if (!string.IsNullOrWhiteSpace(publicId))
+            await imageService.DeleteAsync(publicId, cancellationToken);
+
+        var updatedUrls = existingUrls.Where(u => u != imageUrl).ToList();
+        product.ProductImagesJson = SerializeStringList(updatedUrls);
+        product.DateUpdated = DateTime.UtcNow;
+        product.UpdatedBy = SystemActor;
+
+        unitOfWork.Update(product);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<ProductResponse>.Ok(MapToResponse(product, product.ProductCategory.Name), "Image deleted successfully");
+    }
+
+    private static string? ExtractCloudinaryPublicId(string url)
+    {
+        // Cloudinary URL format: https://res.cloudinary.com/{cloud}/image/upload/{version}/{folder}/{filename}
+        // Public ID = {folder}/{filename_without_extension}
+        try
+        {
+            var uri = new Uri(url);
+            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var uploadIndex = Array.IndexOf(segments, "upload");
+            if (uploadIndex < 0 || uploadIndex >= segments.Length - 1)
+                return null;
+
+            // Skip version segment (starts with 'v' followed by digits)
+            var afterUpload = segments.Skip(uploadIndex + 1).ToArray();
+            var start = afterUpload.Length > 0 && afterUpload[0].StartsWith('v') && afterUpload[0].Length > 1
+                ? 1
+                : 0;
+
+            var publicIdWithExtension = string.Join("/", afterUpload.Skip(start));
+            var dotIndex = publicIdWithExtension.LastIndexOf('.');
+            return dotIndex > 0 ? publicIdWithExtension[..dotIndex] : publicIdWithExtension;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

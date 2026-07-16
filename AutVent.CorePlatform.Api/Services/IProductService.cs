@@ -12,4 +12,8 @@ public interface IProductService
     Task<ApiResponse<PagedResponse<ProductResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> DeleteAsync(long id, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> UpdateStatusAsync(long id, bool isActive, long userId, CancellationToken cancellationToken = default);
+    ApiResponse<GenerateSkuResponse> GenerateSku(string productName);
+    Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> BulkEditAsync(BulkEditProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ProductResponse>> UploadImagesAsync(long id, IReadOnlyCollection<IFormFile> files, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ProductResponse>> DeleteImageAsync(long id, string imageUrl, long userId, CancellationToken cancellationToken = default);
 }

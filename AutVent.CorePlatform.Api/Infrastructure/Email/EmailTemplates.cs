@@ -64,6 +64,33 @@ public static class EmailTemplates
         };
     }
 
+    public static EmailMessage BusinessWelcome(
+        string toEmail,
+        string fullName,
+        string businessName,
+        IOptions<EmailOptions> options)
+    {
+        var templateAlias = options.Value.Resend.Templates.BusinessWelcome;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("BusinessWelcome template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = toEmail,
+            Subject = "Welcome to AutVent!",
+            TemplateAlias = templateAlias,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["fullName"] = fullName.Split(' ')[0],
+                ["businessName"] = businessName,
+                ["year"] = DateTime.UtcNow.Year
+            }
+        };
+    }
+
     public static EmailMessage ForgotPassword(
         string toEmail,
         string fullName,
@@ -89,6 +116,35 @@ public static class EmailTemplates
                 ["fullName"] = fullName.Split(' ')[0],
                 ["resetLink"] = resetLink,
                 ["year"] = expiresAtUtc.Year
+            }
+        };
+    }
+
+    public static EmailMessage ContactSupport(
+        string supportEmail,
+        string fullName,
+        string fromEmail,
+        string message,
+        IOptions<EmailOptions> options)
+    {
+        var templateAlias = options.Value.Resend.Templates.ContactSupport;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("ContactSupport template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = supportEmail,
+            Subject = $"Support Request from {fullName}",
+            TemplateAlias = templateAlias,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["fullName"] = fullName,
+                ["fromEmail"] = fromEmail,
+                ["message"] = message,
+                ["year"] = DateTime.UtcNow.Year
             }
         };
     }
