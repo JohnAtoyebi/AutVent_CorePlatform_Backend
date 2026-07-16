@@ -223,7 +223,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         if (requestedSupplierIds.Length > 0)
         {
             var validSupplierIds = await unitOfWork.Query<Supplier>()
-                .Where(x => requestedSupplierIds.Contains(x.Id) && x.BusinessId == store.BusinessId)
+                .Where(x => requestedSupplierIds.Contains(x.Id))
                 .Select(x => x.Id)
                 .ToHashSetAsync(cancellationToken);
 
@@ -1028,7 +1028,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         if (request.SupplierId.HasValue)
         {
             var supplierExists = await unitOfWork.Query<Supplier>()
-                .AnyAsync(x => x.Id == request.SupplierId.Value && x.BusinessId == product.Store.BusinessId, cancellationToken);
+                .AnyAsync(x => x.Id == request.SupplierId.Value, cancellationToken);
 
             if (!supplierExists)
             {

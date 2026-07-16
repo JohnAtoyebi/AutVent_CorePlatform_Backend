@@ -10,7 +10,9 @@ namespace AutVent.CorePlatform.Api.Services;
 
 public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenService
 {
-    public string GenerateAccessToken(User user)
+    public string GenerateAccessToken(User user) => GenerateAccessTokenWithExpiry(user).Token;
+
+    public (string Token, DateTime ExpiresAt) GenerateAccessTokenWithExpiry(User user)
     {
         var jwt = configuration.GetSection("Jwt").Get<JwtOptions>()
             ?? throw new InvalidOperationException("JWT settings are missing.");
@@ -20,6 +22,7 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiresAt = DateTime.UtcNow.AddMinutes(jwt.ExpiryMinutes <= 0 ? 60 : jwt.ExpiryMinutes);
 
         var claims = new List<Claim>
         {
@@ -33,10 +36,10 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
             issuer: jwt.Issuer,
             audience: jwt.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(jwt.ExpiryMinutes <= 0 ? 60 : jwt.ExpiryMinutes),
+            expires: expiresAt,
             signingCredentials: credentials);
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
     }
 
     public (string Token, DateTime ExpiresAt) GenerateRefreshToken()
