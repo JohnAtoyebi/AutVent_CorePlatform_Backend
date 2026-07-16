@@ -172,13 +172,32 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var accessToken = jwtTokenService.GenerateAccessToken(user);
+        var (accessToken, accessExpiresAt) = jwtTokenService.GenerateAccessTokenWithExpiry(user);
+        var (rawRefreshToken, refreshExpiresAt) = jwtTokenService.GenerateRefreshToken();
+
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = rawRefreshToken,
+            DateExpired = refreshExpiresAt,
+            IsUsed = false,
+            IsRevoked = false,
+            IsActive = true,
+            CreatedBy = SystemActor,
+            DateCreated = now
+        };
+
+        await unitOfWork.CreateAsync(refreshToken, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var response = new VerifyOtpResponse
         {
             EmailAddress = normalizedEmail,
             IsVerified = true,
-            AccessToken = accessToken
+            AccessToken = accessToken,
+            AccessTokenExpiresAtUtc = accessExpiresAt,
+            RefreshToken = rawRefreshToken,
+            RefreshTokenExpiresAtUtc = refreshExpiresAt
         };
 
         return ApiResponse<VerifyOtpResponse>.Ok(response, "Email verified successfully");

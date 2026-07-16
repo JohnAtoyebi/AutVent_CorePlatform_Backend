@@ -5,5 +5,6 @@ namespace AutVent.CorePlatform.Api.Services;
 public interface IJwtTokenService
 {
     string GenerateAccessToken(User user);
+    (string Token, DateTime ExpiresAt) GenerateAccessTokenWithExpiry(User user);
     (string Token, DateTime ExpiresAt) GenerateRefreshToken();
 }

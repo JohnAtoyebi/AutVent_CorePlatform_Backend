@@ -34,12 +34,12 @@ public sealed class AuthenticationService(
         var user = await unitOfWork.Query<User>()
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
-        if (user is null)
+        if (user is null || !string.Equals(user.Password, hashedPassword, StringComparison.Ordinal))
         {
             return ApiResponse<SignInResponse>.Failed(
-                StatusCodes.Status404NotFound,
-                "User not found",
-                [new ApiError("UserNotFound", "No user found for this email", nameof(request.EmailAddress))]);
+                StatusCodes.Status401Unauthorized,
+                "Invalid credentials",
+                [new ApiError("InvalidCredentials", "Email or password is incorrect")]);
         }
 
         if (!user.IsActive)
@@ -48,14 +48,6 @@ public sealed class AuthenticationService(
                 StatusCodes.Status403Forbidden,
                 "Email is not verified",
                 [new ApiError("EmailNotVerified", "Verify your email before signing in", nameof(request.EmailAddress))]);
-        }
-
-        if (!string.Equals(user.Password, hashedPassword, StringComparison.Ordinal))
-        {
-            return ApiResponse<SignInResponse>.Failed(
-                StatusCodes.Status401Unauthorized,
-                "Invalid credentials",
-                [new ApiError("InvalidCredentials", "Email or password is incorrect")]);
         }
 
         var business = await unitOfWork.Query<Business>()
@@ -78,12 +70,15 @@ public sealed class AuthenticationService(
         await unitOfWork.CreateAsync(refreshToken, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var (accessToken, accessExpiresAt) = jwtTokenService.GenerateAccessTokenWithExpiry(user);
+
         var response = new SignInResponse
         {
             UserId = user.Id,
             FullName = user.FullName,
             EmailAddress = user.EmailAddress,
-            AccessToken = GenerateAccessToken(user),
+            AccessToken = accessToken,
+            AccessTokenExpiresAtUtc = accessExpiresAt,
             RefreshToken = rawRefreshToken,
             RefreshTokenExpiresAtUtc = refreshExpiresAt,
             IsBusinessCreated = business == null ? false : true
