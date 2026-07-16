@@ -32,6 +32,8 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<SubscriptionPlanDefinition> SubscriptionPlanDefinitions => Set<SubscriptionPlanDefinition>();
     public DbSet<BusinessSubscription> BusinessSubscriptions => Set<BusinessSubscription>();
     public DbSet<BillingSubscriptionTransaction> BillingSubscriptionTransactions => Set<BillingSubscriptionTransaction>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -156,6 +158,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Email).HasMaxLength(200);
+            entity.Property(x => x.Address).HasMaxLength(500);
             entity.HasIndex(x => new { x.PhoneNumber, x.StoreId }).IsUnique();
             entity.HasIndex(x => new { x.Email, x.StoreId }).IsUnique();
 
@@ -190,6 +193,41 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.HasOne(x => x.Sale)
                 .WithMany(x => x.SaleItems)
                 .HasForeignKey(x => x.SaleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Product)
+                .WithMany()
+                .HasForeignKey(x => x.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Invoice>(entity =>
+        {
+            entity.Property(x => x.InvoiceNumber).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PaymentTerms).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.PaymentMethod).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.DiscountType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.VatRate).HasColumnType("decimal(5,2)");
+            entity.Property(x => x.Notes).HasMaxLength(500);
+            entity.HasIndex(x => x.InvoiceNumber).IsUnique();
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<InvoiceItem>(entity =>
+        {
+            entity.HasOne(x => x.Invoice)
+                .WithMany(x => x.InvoiceItems)
+                .HasForeignKey(x => x.InvoiceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(x => x.Product)
@@ -338,11 +376,6 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.ContactEmail).HasMaxLength(200);
             entity.Property(x => x.ContactPhone).HasMaxLength(30);
-
-            entity.HasOne(x => x.Business)
-                .WithMany()
-                .HasForeignKey(x => x.BusinessId)
-                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SubscriptionPlanDefinition>(entity =>

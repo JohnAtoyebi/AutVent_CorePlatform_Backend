@@ -69,6 +69,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
             FullName = request.FullName.Trim(),
             PhoneNumber = normalizedPhone,
             Email = normalizedEmail,
+            Address = request.Address?.Trim(),
             StoreId = storeId,
             IsActive = true,
             CreatedBy = SystemActor,
@@ -220,6 +221,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
         customer.FullName = request.FullName.Trim();
         customer.PhoneNumber = normalizedPhone;
         customer.Email = normalizedEmail;
+        customer.Address = request.Address?.Trim();
         customer.DateUpdated = DateTime.UtcNow;
         customer.UpdatedBy = SystemActor;
 
@@ -264,6 +266,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
         FullName = customer.FullName,
         PhoneNumber = customer.PhoneNumber,
         Email = customer.Email,
+        Address = customer.Address,
         StoreId = customer.StoreId
     };
 }
