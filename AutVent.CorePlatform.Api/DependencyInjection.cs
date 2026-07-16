@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IStaffService, StaffService>();
         services.AddScoped<IMetricsService, MetricsService>();
         services.AddScoped<ISupportService, SupportService>();
+        services.AddScoped<IBillingService, BillingService>();
         services.AddScoped<BusinessIndustrySeeder>();
         services.AddScoped<StaffRangeSeeder>();
         services.AddScoped<StoreCategorySeeder>();
