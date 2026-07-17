@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
+public sealed class PosService(IUnitOfWork unitOfWork, INotificationService notificationService) : IPosService
 {
     private const string SystemActor = "system";
 
@@ -276,6 +276,22 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Notify the business owner
+        var notifTitle = isPartPayment ? "Part payment received" : "New sale completed";
+        var notifMessage = isPartPayment
+            ? $"Sale {sale.SaleNumber} recorded with part payment of ₦{request.AmountPaid:N2}. Balance due: ₦{sale.BalanceRemaining:N2}."
+            : $"Sale {sale.SaleNumber} completed for ₦{sale.TotalAmount:N2}.";
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = store.Business.UserId,
+            BusinessId = store.Business.Id,
+            Type = isPartPayment ? NotificationType.SalePartPayment : NotificationType.SaleCompleted,
+            Title = notifTitle,
+            Message = notifMessage,
+            ActionUrl = $"/sales/{sale.Id}"
+        }, cancellationToken);
 
         var createdSale = await unitOfWork.Query<Sale>()
             .Include(x => x.Customer)

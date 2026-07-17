@@ -34,6 +34,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<BillingSubscriptionTransaction> BillingSubscriptionTransactions => Set<BillingSubscriptionTransaction>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -237,6 +238,26 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         });
 
         ConfigureBaseEntityProperties(modelBuilder);
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ActionUrl).HasMaxLength(500);
+            entity.HasIndex(x => new { x.UserId, x.IsRead });
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
 
         modelBuilder.Entity<ReferralRecord>(entity =>
         {

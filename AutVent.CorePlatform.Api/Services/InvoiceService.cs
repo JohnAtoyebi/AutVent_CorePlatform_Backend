@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class InvoiceService(IUnitOfWork unitOfWork) : IInvoiceService
+public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService notificationService) : IInvoiceService
 {
     private const decimal VatRate = 7.5m;
     private const string SystemActor = "system";
@@ -218,6 +218,19 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork) : IInvoiceService
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var ownerId = await GetStoreOwnerIdAsync(storeId, cancellationToken);
+        if (ownerId.HasValue)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = ownerId.Value,
+                Type = NotificationType.InvoiceSent,
+                Title = "Invoice sent",
+                Message = $"Invoice {invoice.InvoiceNumber} has been marked as sent.",
+                ActionUrl = $"/invoices/{invoice.Id}"
+            }, cancellationToken);
+        }
+
         return ApiResponse<InvoiceResponse>.Ok(MapToResponse(invoice, null));
     }
 
@@ -248,6 +261,22 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork) : IInvoiceService
         invoice.DateUpdated = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var ownerId = await GetStoreOwnerIdAsync(storeId, cancellationToken);
+        if (ownerId.HasValue)
+        {
+            var isPaid = invoice.Status == InvoiceStatus.Paid;
+            await notificationService.CreateAsync(new CreateNotificationRequest
+            {
+                UserId = ownerId.Value,
+                Type = isPaid ? NotificationType.InvoicePaid : NotificationType.InvoiceSent,
+                Title = isPaid ? "Invoice fully paid" : "Invoice partial payment received",
+                Message = isPaid
+                    ? $"Invoice {invoice.InvoiceNumber} has been fully paid (#{invoice.TotalAmount:N2})."
+                    : $"Invoice {invoice.InvoiceNumber}: #{request.AmountPaid:N2} received. Balance remaining: #{invoice.BalanceRemaining:N2}.",
+                ActionUrl = $"/invoices/{invoice.Id}"
+            }, cancellationToken);
+        }
 
         return ApiResponse<InvoiceResponse>.Ok(MapToResponse(invoice, null));
     }
@@ -322,6 +351,15 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork) : IInvoiceService
             .CountAsync(x => x.StoreId == storeId, cancellationToken);
 
         return $"INV-{storeId:D4}-{(count + 1):D5}";
+    }
+
+    private async Task<long?> GetStoreOwnerIdAsync(long storeId, CancellationToken cancellationToken)
+    {
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
+
+        return store?.Business?.UserId;
     }
 
     private static InvoiceResponse MapToResponse(Invoice invoice, List<Product>? products)
