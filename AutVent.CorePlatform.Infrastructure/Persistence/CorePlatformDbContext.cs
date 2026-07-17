@@ -14,6 +14,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<BusinessProductCategory> BusinessProductCategories => Set<BusinessProductCategory>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
@@ -140,7 +141,30 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         modelBuilder.Entity<ProductCategory>(entity =>
         {
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            // Name is globally unique across the catalog
             entity.HasIndex(x => x.Name).IsUnique();
+
+            entity.HasOne(x => x.CreatedByBusiness)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByBusinessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<BusinessProductCategory>(entity =>
+        {
+            // One business-category pair per business
+            entity.HasIndex(x => new { x.BusinessId, x.ProductCategoryId }).IsUnique();
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.ProductCategory)
+                .WithMany(x => x.BusinessMappings)
+                .HasForeignKey(x => x.ProductCategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PasswordResetToken>(entity =>
