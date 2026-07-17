@@ -262,6 +262,7 @@ public sealed class PosService(IUnitOfWork unitOfWork, INotificationService noti
             PaymentMethod = request.PaymentMethod,
             Status = saleStatus,
             Notes = request.Notes,
+            StaffId = request.StaffId,
             SaleItems = saleItems,
             IsActive = true,
             CreatedBy = SystemActor,
