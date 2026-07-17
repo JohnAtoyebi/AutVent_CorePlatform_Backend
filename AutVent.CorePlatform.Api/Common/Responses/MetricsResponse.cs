@@ -177,3 +177,169 @@ public sealed class CustomerMetricsResponse
     /// <summary>Number of customers who made more than one purchase in the current period.</summary>
     public int RepeatCustomerCount { get; init; }
 }
+
+// ── Sales-by-location ───────────────────────────────────────────────────────
+
+public sealed class SalesByLocationResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public List<LocationSalesRow> Locations { get; init; } = [];
+}
+
+public sealed class LocationSalesRow
+{
+    public long StoreId { get; init; }
+    public string StoreName { get; init; } = string.Empty;
+    public int TransactionCount { get; init; }
+    public decimal Revenue { get; init; }
+    public decimal RevenueShare { get; init; }
+}
+
+// ── Sales-by-category ───────────────────────────────────────────────────────
+
+public sealed class SalesByCategoryResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public List<CategorySalesRow> Categories { get; init; } = [];
+}
+
+public sealed class CategorySalesRow
+{
+    public long CategoryId { get; init; }
+    public string CategoryName { get; init; } = string.Empty;
+    public long UnitsSold { get; init; }
+    public decimal Revenue { get; init; }
+    public decimal RevenueShare { get; init; }
+}
+
+// ── Payment-method breakdown ────────────────────────────────────────────────
+
+public sealed class PaymentMethodBreakdownResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public List<PaymentMethodRow> Methods { get; init; } = [];
+}
+
+public sealed class PaymentMethodRow
+{
+    public string Method { get; init; } = string.Empty;
+    public int TransactionCount { get; init; }
+    public decimal Revenue { get; init; }
+    public decimal RevenueShare { get; init; }
+}
+
+// ── Top customers ───────────────────────────────────────────────────────────
+
+public sealed class TopCustomersResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public List<TopCustomerRow> BySpend { get; init; } = [];
+    public List<TopCustomerRow> ByOrderCount { get; init; } = [];
+}
+
+public sealed class TopCustomerRow
+{
+    public long CustomerId { get; init; }
+    public string CustomerName { get; init; } = string.Empty;
+    public int OrderCount { get; init; }
+    public decimal TotalSpend { get; init; }
+}
+
+// ── Customer growth time-series ─────────────────────────────────────────────
+
+public sealed class CustomerGrowthResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public List<CustomerGrowthPoint> Series { get; init; } = [];
+}
+
+public sealed class CustomerGrowthPoint
+{
+    public string Label { get; init; } = string.Empty;
+    public int NewCustomers { get; init; }
+    public int CumulativeTotal { get; init; }
+}
+
+// ── Staff analytics ─────────────────────────────────────────────────────────
+
+public sealed class StaffAnalyticsResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public List<StaffAnalyticsRow> Staff { get; init; } = [];
+}
+
+public sealed class StaffAnalyticsRow
+{
+    public long StaffId { get; init; }
+    public string StaffName { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
+    public int TransactionCount { get; init; }
+    public decimal Revenue { get; init; }
+    public decimal AverageOrderValue { get; init; }
+}
+
+// ── Extended product metrics ─────────────────────────────────────────────────
+
+public sealed class ProductPerformanceResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public MetricPeriod PreviousPeriod { get; init; } = null!;
+    public List<MostSoldProductResponse> MostSold { get; init; } = [];
+    public List<MostProfitableProductRow> MostProfitable { get; init; } = [];
+    public List<FastestGrowingProductRow> FastestGrowing { get; init; } = [];
+    public List<SlowMovingProductRow> SlowMoving { get; init; } = [];
+}
+
+public sealed class MostProfitableProductRow
+{
+    public long ProductId { get; init; }
+    public string ProductName { get; init; } = string.Empty;
+    public string? Sku { get; init; }
+    public long UnitsSold { get; init; }
+    public decimal Revenue { get; init; }
+    public decimal GrossProfit { get; init; }
+    public decimal? ProfitMarginPct { get; init; }
+}
+
+public sealed class FastestGrowingProductRow
+{
+    public long ProductId { get; init; }
+    public string ProductName { get; init; } = string.Empty;
+    public string? Sku { get; init; }
+    public long CurrentUnitsSold { get; init; }
+    public long PreviousUnitsSold { get; init; }
+    public decimal? GrowthPct { get; init; }
+}
+
+public sealed class SlowMovingProductRow
+{
+    public long ProductId { get; init; }
+    public string ProductName { get; init; } = string.Empty;
+    public string? Sku { get; init; }
+    public long StockOnHand { get; init; }
+    public decimal? CostPrice { get; init; }
+    public decimal? StockValue { get; init; }
+}
+
+// ── Financial analytics ──────────────────────────────────────────────────────
+
+public sealed class FinancialMetricsResponse
+{
+    public MetricPeriod CurrentPeriod { get; init; } = null!;
+    public MetricPeriod PreviousPeriod { get; init; } = null!;
+    public MetricItemDecimal Revenue { get; init; } = null!;
+    public decimal CostOfGoods { get; init; }
+    public decimal GrossProfit { get; init; }
+    public decimal? GrossProfitMarginPct { get; init; }
+    public List<CategoryProfitRow> ProfitByCategory { get; init; } = [];
+}
+
+public sealed class CategoryProfitRow
+{
+    public long CategoryId { get; init; }
+    public string CategoryName { get; init; } = string.Empty;
+    public decimal Revenue { get; init; }
+    public decimal CostOfGoods { get; init; }
+    public decimal GrossProfit { get; init; }
+    public decimal? GrossProfitMarginPct { get; init; }
+}

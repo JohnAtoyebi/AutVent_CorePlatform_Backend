@@ -22,5 +22,7 @@ public class Sale : BaseEntity
     public SalePaymentMethod PaymentMethod { get; set; }
     public SaleStatus Status { get; set; }
     public string? Notes { get; set; }
+    public long? StaffId { get; set; }
+    public virtual Staff? Staff { get; set; }
     public virtual ICollection<SaleItem> SaleItems { get; set; } = new List<SaleItem>();
 }

@@ -43,6 +43,8 @@ public sealed class CreateSaleRequest
 
     public decimal? ExpectedBalanceRemaining { get; init; }
 
+    public long? StaffId { get; init; }
+
     [Required]
     public List<CreateSaleItemRequest> Items { get; init; } = [];
 }

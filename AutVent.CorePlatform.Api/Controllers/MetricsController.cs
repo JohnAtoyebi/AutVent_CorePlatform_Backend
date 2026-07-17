@@ -75,4 +75,76 @@ public class MetricsController(IMetricsService metricsService) : ApiControllerBa
         var response = await metricsService.GetCustomerMetricsAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpGet("sales-by-location")]
+    [ProducesResponseType(typeof(ApiResponse<SalesByLocationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<SalesByLocationResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSalesByLocation([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetSalesByLocationAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("sales-by-category")]
+    [ProducesResponseType(typeof(ApiResponse<SalesByCategoryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<SalesByCategoryResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSalesByCategory([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetSalesByCategoryAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("payment-methods")]
+    [ProducesResponseType(typeof(ApiResponse<PaymentMethodBreakdownResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PaymentMethodBreakdownResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPaymentMethodBreakdown([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetPaymentMethodBreakdownAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("top-customers")]
+    [ProducesResponseType(typeof(ApiResponse<TopCustomersResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TopCustomersResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTopCustomers([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetTopCustomersAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("customer-growth")]
+    [ProducesResponseType(typeof(ApiResponse<CustomerGrowthResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CustomerGrowthResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetCustomerGrowth([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetCustomerGrowthAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("staff")]
+    [ProducesResponseType(typeof(ApiResponse<StaffAnalyticsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<StaffAnalyticsResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetStaffAnalytics([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetStaffAnalyticsAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("product-performance")]
+    [ProducesResponseType(typeof(ApiResponse<ProductPerformanceResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ProductPerformanceResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProductPerformance([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetProductPerformanceAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("financial")]
+    [ProducesResponseType(typeof(ApiResponse<FinancialMetricsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<FinancialMetricsResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFinancialMetrics([FromQuery] MetricsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetFinancialMetricsAsync(request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }

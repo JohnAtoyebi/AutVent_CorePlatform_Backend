@@ -12,4 +12,12 @@ public interface IMetricsService
     Task<ApiResponse<ProductMetricsResponse>> GetProductMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryMetricsResponse>> GetInventoryMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<CustomerMetricsResponse>> GetCustomerMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesByLocationResponse>> GetSalesByLocationAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesByCategoryResponse>> GetSalesByCategoryAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PaymentMethodBreakdownResponse>> GetPaymentMethodBreakdownAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<TopCustomersResponse>> GetTopCustomersAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CustomerGrowthResponse>> GetCustomerGrowthAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<StaffAnalyticsResponse>> GetStaffAnalyticsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ProductPerformanceResponse>> GetProductPerformanceAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<FinancialMetricsResponse>> GetFinancialMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default);
 }
