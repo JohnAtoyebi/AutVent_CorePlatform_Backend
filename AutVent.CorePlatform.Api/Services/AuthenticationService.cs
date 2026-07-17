@@ -12,7 +12,6 @@ using AutVent.CorePlatform.Domain.Entities;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 
 namespace AutVent.CorePlatform.Api.Services;
 

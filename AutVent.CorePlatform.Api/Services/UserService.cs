@@ -24,6 +24,17 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
                 [new ApiError("UserNotFound", "No user found for this id", "userId")]);
         }
 
+        // Backfill: accounts created before referral codes were introduced arrive with null.
+        // Generate and persist a code now so the caller always gets a non-null value.
+        if (string.IsNullOrWhiteSpace(user.ReferralCode))
+        {
+            user.ReferralCode = await GenerateUniqueReferralCodeAsync(cancellationToken);
+            user.UpdatedBy = SystemActor;
+            user.DateUpdated = DateTime.UtcNow;
+            unitOfWork.Update(user);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
         var response = new UserProfileResponse
         {
             Id = user.Id,
@@ -178,6 +189,18 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
         return ApiResponse<ChangeEmailResponse>.Ok(
             new ChangeEmailResponse { UserId = user.Id, NewEmailAddress = normalizedEmail },
             "Email address updated. Please verify your new email before signing in again");
+    }
+
+    private async Task<string> GenerateUniqueReferralCodeAsync(CancellationToken cancellationToken)
+    {
+        string code;
+        do
+        {
+            code = ReferralCodeGenerator.Generate();
+        }
+        while (await unitOfWork.Query<User>().AnyAsync(x => x.ReferralCode == code, cancellationToken));
+
+        return code;
     }
 }
 
