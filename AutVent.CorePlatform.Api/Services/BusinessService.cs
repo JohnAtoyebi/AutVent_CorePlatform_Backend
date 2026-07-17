@@ -104,6 +104,9 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         };
         await unitOfWork.CreateAsync(subscription, cancellationToken);
 
+        // Map all system-default product categories to this new business
+        await ProductCategoryService.MapDefaultsToBusinessAsync(unitOfWork, business.Id, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var response = MapToResponse(business, industry.Name, staffRange.Name);
