@@ -624,12 +624,12 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
 
         query = sortBy switch
         {
-            ProductSortBy.Oldest      => query.OrderBy(x => x.Id),
-            ProductSortBy.NameAsc     => query.OrderBy(x => x.Name),
-            ProductSortBy.NameDesc    => query.OrderByDescending(x => x.Name),
-            ProductSortBy.QuantityAsc => query.OrderBy(x => x.Quantity),
+            ProductSortBy.Oldest       => query.OrderBy(x => x.DateCreated),
+            ProductSortBy.NameAsc      => query.OrderBy(x => x.Name),
+            ProductSortBy.NameDesc     => query.OrderByDescending(x => x.Name),
+            ProductSortBy.QuantityAsc  => query.OrderBy(x => x.Quantity),
             ProductSortBy.QuantityDesc => query.OrderByDescending(x => x.Quantity),
-            _                         => query.OrderByDescending(x => x.Id)
+            _                          => query.OrderByDescending(x => x.DateCreated)  
         };
 
         var records = await query
@@ -895,7 +895,9 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         Tags = DeserializeStringList(product.TagsJson),
         Weight = product.Weight,
         SupplierId = product.SupplierId,
-        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice)
+        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice),
+        CreatedAt = product.DateCreated,
+        UpdatedAt = product.DateUpdated
     };
 
     public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> UpdateAsync(long id, CreateProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
