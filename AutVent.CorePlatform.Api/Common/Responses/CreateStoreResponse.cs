@@ -8,4 +8,10 @@ public sealed class CreateStoreResponse
     public string StoreCategory { get; init; } = string.Empty;
     public string EmailAddress { get; init; } = string.Empty;
     public string PhoneNumber { get; init; } = string.Empty;
+    public string? Address { get; init; }
+    public string? City { get; init; }
+    public string? State { get; init; }
+    public string? Country { get; init; }
+    public string? LogoUrl { get; init; }
+    public List<BankAccountResponse> BankAccounts { get; init; } = [];
 }

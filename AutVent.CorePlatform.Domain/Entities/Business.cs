@@ -3,6 +3,7 @@
 public class Business : BaseEntity
 {
     public string BusinessName { get; set; } = string.Empty;
+    public string? LogoUrl { get; set; }
     public long StaffRangeId { get; set; }
     public virtual StaffRange StaffRange { get; set; } = null!;
     public long UserId { get; set; }

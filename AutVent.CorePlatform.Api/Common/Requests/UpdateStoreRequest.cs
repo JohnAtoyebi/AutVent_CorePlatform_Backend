@@ -2,27 +2,20 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AutVent.CorePlatform.Api.Common.Requests;
 
-public sealed class CreateStoreRequest
+public sealed class UpdateStoreRequest
 {
-    [Required]
-    public long BusinessId { get; init; }
-
-    [Required]
     [MaxLength(200)]
-    public string Name { get; init; } = string.Empty;
+    public string? Name { get; init; }
 
-    [Required]
-    public int StoreCategoryId { get; init; }
+    public int? StoreCategoryId { get; init; }
 
-    [Required]
     [EmailAddress]
     [MaxLength(200)]
-    public string EmailAddress { get; init; } = string.Empty;
+    public string? EmailAddress { get; init; }
 
-    [Required]
     [Phone]
     [MaxLength(20)]
-    public string PhoneNumber { get; init; } = string.Empty;
+    public string? PhoneNumber { get; init; }
 
     [MaxLength(500)]
     public string? Address { get; init; }

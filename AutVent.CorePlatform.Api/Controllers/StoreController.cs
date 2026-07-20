@@ -36,4 +36,15 @@ public class StoreController(IStoreService storeService) : ApiControllerBase
         var response = await storeService.GetAllAsync(request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPut("{id:long}")]
+    [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<CreateStoreResponse>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Update(long id, [FromBody] UpdateStoreRequest request, CancellationToken cancellationToken)
+    {
+        var response = await storeService.UpdateAsync(id, request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }

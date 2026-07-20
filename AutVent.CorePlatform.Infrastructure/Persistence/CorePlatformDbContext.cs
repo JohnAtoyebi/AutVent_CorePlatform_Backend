@@ -36,6 +36,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<BusinessBankAccount> BusinessBankAccounts => Set<BusinessBankAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,6 +62,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         modelBuilder.Entity<Business>(entity =>
         {
             entity.Property(x => x.BusinessName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.LogoUrl).HasMaxLength(1000);
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -95,6 +97,10 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.EmailAddress).HasMaxLength(200).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Address).HasMaxLength(500);
+            entity.Property(x => x.City).HasMaxLength(100);
+            entity.Property(x => x.State).HasMaxLength(100);
+            entity.Property(x => x.Country).HasMaxLength(100);
 
             entity.HasOne(x => x.StoreCategory)
                 .WithMany()
@@ -264,6 +270,19 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BusinessBankAccount>(entity =>
+        {
+            entity.Property(x => x.BankName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.AccountNumber).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.AccountName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SortCode).HasMaxLength(20);
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         ConfigureBaseEntityProperties(modelBuilder);
