@@ -103,8 +103,8 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
             DateCreated = now
         };
         await unitOfWork.CreateAsync(subscription, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Map all system-default product categories to this new business
         await ProductCategoryService.MapDefaultsToBusinessAsync(unitOfWork, business.Id, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
