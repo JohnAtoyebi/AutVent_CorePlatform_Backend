@@ -140,7 +140,7 @@ public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
             Current = current,
             Previous = previous,
             Change = change,
-            PercentageChange = pct
+            PercentageChange = pct == null ? 0 : pct
         };
     }
 
