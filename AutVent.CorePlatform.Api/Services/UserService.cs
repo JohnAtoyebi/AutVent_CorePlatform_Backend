@@ -2,12 +2,13 @@ using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
+public sealed class UserService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IUserService
 {
     private const string SystemActor = "system";
 
@@ -43,6 +44,7 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
             PhoneNumber = user.PhoneNumber,
             ReferralCode = user.ReferralCode,
             IsActive = user.IsActive,
+            ProfilePhotoUrl = user.ProfilePhotoUrl,
             MemberSince = user.DateCreated
         };
 
@@ -82,6 +84,8 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
 
         user.FullName = request.FullName.Trim();
         user.PhoneNumber = normalizedPhone;
+        if (request.ProfilePhotoUrl is not null)
+            user.ProfilePhotoUrl = request.ProfilePhotoUrl.Trim();
         user.UpdatedBy = SystemActor;
         user.DateUpdated = now;
 
@@ -93,7 +97,8 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
             {
                 Id = user.Id,
                 FullName = user.FullName,
-                PhoneNumber = user.PhoneNumber
+                PhoneNumber = user.PhoneNumber,
+                ProfilePhotoUrl = user.ProfilePhotoUrl
             },
             "Profile updated successfully");
     }
@@ -127,6 +132,14 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
 
         unitOfWork.Update(user);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserPasswordChanged,
+            nameof(User),
+            $"User '{user.EmailAddress}' changed their password.",
+            entityId: userId,
+            cancellationToken: cancellationToken);
 
         return ApiResponse<ChangePasswordResponse>.Ok(
             new ChangePasswordResponse { UserId = user.Id },

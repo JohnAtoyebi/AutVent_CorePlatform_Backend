@@ -65,6 +65,9 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
                 .FirstOrDefaultAsync(x => x.ReferralCode == request.ReferralCode.Trim(), cancellationToken);
         }
 
+        var ownerRole = await unitOfWork.Query<Role>()
+            .FirstOrDefaultAsync(x => x.Name.ToLower() == "owner", cancellationToken);
+
         var user = new User
         {
             FullName = request.FullName.Trim(),
@@ -72,6 +75,7 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
             PhoneNumber = normalizedPhone,
             Password = PasswordHasher.Hash(request.Password),
             ReferralCode = referralCode,
+            RoleId = ownerRole?.Id,
             IsActive = false,
             CreatedBy = SystemActor,
             DateCreated = utcNow

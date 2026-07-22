@@ -9,6 +9,7 @@ using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -21,7 +22,8 @@ public sealed class AuthenticationService(
     IEmailProvider emailProvider,
     IOptions<EmailOptions> emailOptions,
     IOptions<AppOptions> appOptions,
-    IJwtTokenService jwtTokenService) : IAuthenticationService
+    IJwtTokenService jwtTokenService,
+    IAuditLogService auditLogService) : IAuthenticationService
 {
     private const string SystemActor = "system";
 
@@ -68,6 +70,14 @@ public sealed class AuthenticationService(
 
         await unitOfWork.CreateAsync(refreshToken, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            user.Id,
+            AuditAction.UserSignedIn,
+            nameof(User),
+            $"User '{user.EmailAddress}' signed in.",
+            entityId: user.Id,
+            cancellationToken: cancellationToken);
 
         var (accessToken, accessExpiresAt) = jwtTokenService.GenerateAccessTokenWithExpiry(user);
 

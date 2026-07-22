@@ -1,12 +1,13 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
+public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IStaffService
 {
     private const string SystemActor = "system";
 
@@ -394,6 +395,18 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (!isActive)
+        {
+            await auditLogService.LogAsync(
+                userId,
+                AuditAction.StaffDeactivated,
+                nameof(Staff),
+                $"Staff member '{staff.FullName}' was deactivated.",
+                businessId: staff.BusinessId,
+                entityId: staff.Id,
+                cancellationToken: cancellationToken);
+        }
+
         var updated = await LoadStaffWithIncludes(staff.Id, cancellationToken);
         return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!),
             $"Staff member {(isActive ? "activated" : "deactivated")} successfully");
@@ -422,6 +435,15 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
 
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StaffDeleted,
+            nameof(Staff),
+            $"Staff member '{staff.FullName}' was deleted.",
+            businessId: staff.BusinessId,
+            entityId: staff.Id,
+            cancellationToken: cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Staff member deleted successfully");
     }

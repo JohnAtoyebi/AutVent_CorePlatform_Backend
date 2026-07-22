@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions) : IBusinessService
+public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IAuditLogService auditLogService) : IBusinessService
 {
     private const string SystemActor = "system";
 
@@ -74,6 +74,14 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         var business = new Business
         {
             BusinessName = businessName,
+            LogoUrl = request.LogoUrl?.Trim(),
+            Email = request.Email?.Trim().ToLowerInvariant(),
+            PhoneNumber = request.PhoneNumber?.Trim(),
+            Website = request.Website?.Trim(),
+            Address = request.Address?.Trim(),
+            City = request.City?.Trim(),
+            State = request.State?.Trim(),
+            Country = request.Country?.Trim(),
             StaffRangeId = staffRange.Id,
             UserId = user.Id,
             BusinessIndustry = industry,
@@ -108,6 +116,15 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         await ProductCategoryService.MapDefaultsToBusinessAsync(unitOfWork, business.Id, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.BusinessCreated,
+            nameof(Business),
+            $"Business '{businessName}' created.",
+            businessId: business.Id,
+            entityId: business.Id,
+            cancellationToken: cancellationToken);
 
         var response = MapToResponse(business, industry.Name, staffRange.Name);
         return ApiResponse<CreateBusinessResponse>.Created(response, "Business created successfully");
@@ -203,7 +220,15 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 BusinessId = x.Id,
                 Name = x.BusinessName,
                 Industry = x.BusinessIndustry.Name,
-                StaffRange = x.StaffRange.Name
+                StaffRange = x.StaffRange.Name,
+                LogoUrl = x.LogoUrl,
+                Email = x.Email,
+                PhoneNumber = x.PhoneNumber,
+                Website = x.Website,
+                Address = x.Address,
+                City = x.City,
+                State = x.State,
+                Country = x.Country
             })
             .ToListAsync(cancellationToken);
 
@@ -224,6 +249,14 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         BusinessId = business.Id,
         Name = business.BusinessName,
         Industry = industry,
-        StaffRange = staffRange
+        StaffRange = staffRange,
+        LogoUrl = business.LogoUrl,
+        Email = business.Email,
+        PhoneNumber = business.PhoneNumber,
+        Website = business.Website,
+        Address = business.Address,
+        City = business.City,
+        State = business.State,
+        Country = business.Country
     };
 }

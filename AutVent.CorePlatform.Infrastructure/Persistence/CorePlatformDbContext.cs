@@ -37,6 +37,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<BusinessBankAccount> BusinessBankAccounts => Set<BusinessBankAccount>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,9 +48,14 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Password).HasMaxLength(500).IsRequired();
             entity.Property(x => x.ReferralCode).HasMaxLength(50);
+            entity.Property(x => x.ProfilePhotoUrl).HasMaxLength(1000);
             entity.HasIndex(x => x.EmailAddress).IsUnique();
             entity.HasIndex(x => x.PhoneNumber).IsUnique();
             entity.HasIndex(x => x.ReferralCode).IsUnique();
+            entity.HasOne(x => x.Role)
+                  .WithMany()
+                  .HasForeignKey(x => x.RoleId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Otp>(entity =>
@@ -63,6 +69,13 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         {
             entity.Property(x => x.BusinessName).HasMaxLength(200).IsRequired();
             entity.Property(x => x.LogoUrl).HasMaxLength(1000);
+            entity.Property(x => x.Email).HasMaxLength(200);
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20);
+            entity.Property(x => x.Website).HasMaxLength(500);
+            entity.Property(x => x.Address).HasMaxLength(500);
+            entity.Property(x => x.City).HasMaxLength(100);
+            entity.Property(x => x.State).HasMaxLength(100);
+            entity.Property(x => x.Country).HasMaxLength(100);
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -493,6 +506,21 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .WithMany()
                 .HasForeignKey(x => x.SubscriptionPlanId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.Property(x => x.EntityType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.IpAddress).HasMaxLength(50);
+            entity.HasOne(x => x.User)
+                  .WithMany()
+                  .HasForeignKey(x => x.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Business)
+                  .WithMany()
+                  .HasForeignKey(x => x.BusinessId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         base.OnModelCreating(modelBuilder);

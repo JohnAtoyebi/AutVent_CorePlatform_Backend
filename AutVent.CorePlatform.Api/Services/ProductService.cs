@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService) : IProductService
+public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService, IAuditLogService auditLogService) : IProductService
 {
     private const string SystemActor = "system";
 
@@ -1154,6 +1154,14 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
 
         unitOfWork.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.ProductDeleted,
+            nameof(Product),
+            $"Product '{product.Name}' deleted.",
+            entityId: product.Id,
+            cancellationToken: cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Product deleted successfully");
     }
