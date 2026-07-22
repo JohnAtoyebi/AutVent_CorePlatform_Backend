@@ -9,4 +9,5 @@ public interface IStoreService
     Task<ApiResponse<CreateStoreResponse>> GetByIdAsync(long id, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResponse<CreateStoreResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default);
     Task<ApiResponse<CreateStoreResponse>> UpdateAsync(long id, UpdateStoreRequest request, long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<bool>> DeactivateAsync(long id, long userId, CancellationToken cancellationToken = default);
 }

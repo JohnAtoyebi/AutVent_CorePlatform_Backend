@@ -115,7 +115,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         var query = unitOfWork.Query<Store>()
             .Include(x => x.Business)
             .Include(x => x.StoreCategory)
-            .Where(x => x.Business.UserId == userId)
+            .Where(x => x.Business.UserId == userId && !x.IsDeleted)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -265,5 +265,31 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
 
         var bankAccounts = await GetBankAccountsAsync(store.BusinessId, cancellationToken);
         return ApiResponse<CreateStoreResponse>.Ok(MapToResponse(store, store.StoreCategory.Name, store.Business.LogoUrl, bankAccounts), "Store updated successfully");
+    }
+
+    public async Task<ApiResponse<bool>> DeactivateAsync(long id, long userId, CancellationToken cancellationToken = default)
+    {
+        var store = await unitOfWork.Query<Store>()
+            .Include(x => x.Business)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
+
+        if (store is null)
+            return ApiResponse<bool>.Failed(StatusCodes.Status404NotFound, "Store not found",
+                [new ApiError("StoreNotFound", "No store found for this id", nameof(id))]);
+
+        if (store.Business.UserId != userId)
+            return ApiResponse<bool>.Failed(StatusCodes.Status403Forbidden, "You do not have access to this store",
+                [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(id))]);
+
+        if (!store.IsActive)
+            return ApiResponse<bool>.Failed(StatusCodes.Status400BadRequest, "Store is already inactive",
+                [new ApiError("AlreadyInactive", "This store is already deactivated", nameof(id))]);
+
+        store.IsActive = false;
+        store.UpdatedBy = SystemActor;
+        store.DateUpdated = DateTime.UtcNow;
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return ApiResponse<bool>.Ok(true, "Store deactivated successfully");
     }
 }
