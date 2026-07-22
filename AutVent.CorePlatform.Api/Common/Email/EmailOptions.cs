@@ -23,4 +23,5 @@ public sealed class ResendTemplates
     public string ForgotPassword { get; init; } = string.Empty;
     public string BusinessWelcome { get; init; } = string.Empty;
     public string ContactSupport { get; init; } = string.Empty;
+    public string WaitlistConfirmation { get; init; } = string.Empty;
 }
