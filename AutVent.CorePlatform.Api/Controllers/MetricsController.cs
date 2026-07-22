@@ -76,6 +76,15 @@ public class MetricsController(IMetricsService metricsService) : ApiControllerBa
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet("recent-transactions/{id:long}")]
+    [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTransactionById(long id, CancellationToken cancellationToken)
+    {
+        var response = await metricsService.GetTransactionByIdAsync(id, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("sales-by-location")]
     [ProducesResponseType(typeof(ApiResponse<SalesByLocationResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<SalesByLocationResponse>), StatusCodes.Status404NotFound)]
