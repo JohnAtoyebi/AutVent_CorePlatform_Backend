@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AutVent.Application/AutVent.Application.csproj" />
+    <Project Path="src/AutVent.Desktop/AutVent.Desktop.csproj" />
+    <Project Path="src/AutVent.Domain/AutVent.Domain.csproj" />
+    <Project Path="src/AutVent.Infrastructure/AutVent.Infrastructure.csproj" />
+    <Project Path="src/AutVent.Shared/AutVent.Shared.csproj" />
+    <Project Path="src/AutVent.Sync/AutVent.Sync.csproj" />
+  </Folder>
+</Solution>
