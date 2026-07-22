@@ -148,4 +148,31 @@ public static class EmailTemplates
             }
         };
     }
+
+    public static EmailMessage WaitlistConfirmation(
+        string toEmail,
+        string fullName,
+        string websiteUrl,
+        IOptions<EmailOptions> options)
+    {
+        var templateAlias = options.Value.Resend.Templates.WaitlistConfirmation;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("WaitlistConfirmation template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = toEmail,
+            Subject = "You're on the waitlist!",
+            TemplateAlias = templateAlias,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["fullName"] = fullName.Split(' ')[0],
+                ["websiteUrl"] = websiteUrl,
+                ["year"] = DateTime.UtcNow.Year
+            }
+        };
+    }
 }

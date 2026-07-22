@@ -38,6 +38,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<BusinessBankAccount> BusinessBankAccounts => Set<BusinessBankAccount>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -524,6 +525,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         });
 
         base.OnModelCreating(modelBuilder);
+        ConfigureWaitlistEntry(modelBuilder);
     }
 
     private static void ConfigureBaseEntityProperties(ModelBuilder modelBuilder)
@@ -535,5 +537,18 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             modelBuilder.Entity(entityType.ClrType).Property(nameof(BaseEntity.UpdatedBy)).HasMaxLength(200);
             modelBuilder.Entity(entityType.ClrType).Property(nameof(BaseEntity.DateCreated)).IsRequired();
         }
+    }
+
+    private static void ConfigureWaitlistEntry(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WaitlistEntry>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.EmailAddress).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20);
+            entity.Property(x => x.BusinessType).HasMaxLength(200);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasIndex(x => x.EmailAddress).IsUnique();
+        });
     }
 }
