@@ -469,6 +469,64 @@ public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
         });
     }
 
+    public async Task<ApiResponse<SaleResponse>> GetTransactionByIdAsync(long id, long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
+
+        if (business is null)
+            return ApiResponse<SaleResponse>.Failed(StatusCodes.Status404NotFound,
+                "Business not found for this user",
+                [new ApiError("BusinessNotFound", "Create a business before accessing transactions", nameof(userId))]);
+
+        var storeIds = await unitOfWork.Query<Store>()
+            .Where(x => x.BusinessId == business.Id)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var sale = await unitOfWork.Query<Sale>()
+            .Include(s => s.Customer)
+            .Include(s => s.SaleItems).ThenInclude(si => si.Product)
+            .FirstOrDefaultAsync(s => s.Id == id && storeIds.Contains(s.StoreId) && !s.IsDeleted, cancellationToken);
+
+        if (sale is null)
+            return ApiResponse<SaleResponse>.Failed(StatusCodes.Status404NotFound,
+                "Transaction not found",
+                [new ApiError("NotFound", "No transaction found for this id within your business", nameof(id))]);
+
+        return ApiResponse<SaleResponse>.Ok(new SaleResponse
+        {
+            SaleId = sale.Id,
+            SaleNumber = sale.SaleNumber,
+            StoreId = sale.StoreId,
+            CustomerId = sale.CustomerId,
+            CustomerName = sale.Customer?.FullName,
+            SubTotal = sale.SubTotal,
+            DiscountType = sale.DiscountType,
+            DiscountValue = sale.DiscountValue,
+            DiscountAmount = sale.DiscountAmount,
+            TaxAmount = sale.TaxAmount,
+            TotalAmount = sale.TotalAmount,
+            AmountPaid = sale.AmountPaid,
+            BalanceRemaining = sale.BalanceRemaining,
+            BalanceDueDate = sale.BalanceDueDate,
+            ChangeAmount = sale.ChangeAmount,
+            PaymentMethod = sale.PaymentMethod,
+            Status = sale.Status,
+            Notes = sale.Notes,
+            SaleDate = sale.DateCreated,
+            Items = sale.SaleItems.Select(si => new SaleItemResponse
+            {
+                SaleItemId = si.Id,
+                ProductId = si.ProductId,
+                ProductName = si.Product.Name,
+                Quantity = si.Quantity,
+                UnitPrice = si.UnitPrice,
+                LineTotal = si.LineTotal
+            }).ToList()
+        });
+    }
+
     public async Task<ApiResponse<ProductMetricsResponse>> GetProductMetricsAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var business = await unitOfWork.Query<Business>()
