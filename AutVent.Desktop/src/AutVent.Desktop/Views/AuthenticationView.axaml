@@ -1,0 +1,155 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:vm="using:AutVent.Desktop.ViewModels"
+			 x:Class="AutVent.Desktop.Views.AuthenticationView"
+			 x:DataType="vm:AuthenticationViewModel"
+			 mc:Ignorable="d"
+			 Background="#F8FAFC">
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+	<Grid HorizontalAlignment="Center" VerticalAlignment="Center"
+		  Width="420" Margin="0,40">
+
+	  <StackPanel Spacing="0">
+
+		<!-- Logo + Title -->
+		<StackPanel HorizontalAlignment="Center" Spacing="8" Margin="0,0,0,32">
+		  <!-- AutVent Logo Mark (56x56) -->
+		  <Border Width="56" Height="56" CornerRadius="16" Background="#2563EB"
+				  HorizontalAlignment="Center">
+			<Viewbox Width="38" Height="38" HorizontalAlignment="Center" VerticalAlignment="Center">
+			  <Canvas Width="100" Height="100">
+				<Path Fill="White" Data="M 20,82 L 40,82 L 60,16 L 48,16 Z"/>
+				<Path Fill="White" Data="M 51,44 L 64,44 L 80,82 L 56,82 Z"/>
+			  </Canvas>
+			</Viewbox>
+		  </Border>
+		  <TextBlock Text="Welcome to AutVent"
+					 FontSize="22" FontWeight="Bold" Foreground="#0F172A"
+					 HorizontalAlignment="Center"/>
+		  <TextBlock Text="Sign in to your account to continue"
+					 FontSize="14" Foreground="#64748B"
+					 HorizontalAlignment="Center"/>
+		</StackPanel>
+
+		<!-- Offline Mode Banner -->
+		<Border IsVisible="{Binding IsOfflineModeAvailable}"
+				Background="#EFF6FF" BorderBrush="#BFDBFE"
+				BorderThickness="1" CornerRadius="10"
+				Padding="14,10" Margin="0,0,0,16">
+		  <Grid ColumnDefinitions="Auto,*">
+			<TextBlock Text="&#x1F4F6;" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+			<StackPanel Grid.Column="1">
+			  <TextBlock Text="Offline mode available"
+						 FontSize="13" FontWeight="SemiBold" Foreground="#1D4ED8"/>
+			  <TextBlock Text="A cached session was found. You can sign in without internet."
+						 FontSize="12" Foreground="#3B82F6" TextWrapping="Wrap"/>
+			</StackPanel>
+		  </Grid>
+		</Border>
+
+		<!-- Offline Warning Banner -->
+		<Border IsVisible="{Binding !IsOnline}"
+				Background="#FFF7ED" BorderBrush="#FED7AA"
+				BorderThickness="1" CornerRadius="10"
+				Padding="14,10" Margin="0,0,0,16">
+		  <Grid ColumnDefinitions="Auto,*">
+			<TextBlock Text="&#x26A0;" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+			<StackPanel Grid.Column="1">
+			  <TextBlock Text="No internet connection"
+						 FontSize="13" FontWeight="SemiBold" Foreground="#C2410C"/>
+			  <TextBlock Text="First-time login requires an active internet connection."
+						 FontSize="12" Foreground="#EA580C" TextWrapping="Wrap"/>
+			</StackPanel>
+		  </Grid>
+		</Border>
+
+		<!-- Login Card -->
+		<Border Background="White" CornerRadius="16"
+				BoxShadow="0 4 24 0 #14000000"
+				Padding="32">
+		  <StackPanel Spacing="20">
+
+			<!-- Email -->
+			<StackPanel Spacing="6">
+			  <TextBlock Text="Email address"
+						 FontSize="13" FontWeight="Medium" Foreground="#374151"/>
+			  <TextBox Text="{Binding Email, Mode=TwoWay}"
+					   PlaceholderText="you@example.com"
+					   FontSize="14"
+					   CornerRadius="10"
+					   Padding="12,10"
+					   BorderBrush="#E2E8F0"/>
+			</StackPanel>
+
+			<!-- Password -->
+			<StackPanel Spacing="6">
+			  <TextBlock Text="Password"
+						 FontSize="13" FontWeight="Medium" Foreground="#374151"/>
+			  <TextBox Text="{Binding Password, Mode=TwoWay}"
+					   PlaceholderText="Enter your password"
+					   PasswordChar="&#x25CF;"
+					   FontSize="14"
+					   CornerRadius="10"
+					   Padding="12,10"
+					   BorderBrush="#E2E8F0"
+					   IsVisible="{Binding IsOnline}"/>
+			  <TextBlock Text="Password not required for offline login"
+						 FontSize="12" Foreground="#94A3B8"
+						 IsVisible="{Binding !IsOnline}"/>
+			</StackPanel>
+
+			<!-- Remember Me -->
+			<CheckBox IsChecked="{Binding RememberMe}"
+					  Content="Remember me on this device"
+					  FontSize="13" Foreground="#374151"/>
+
+			<!-- Error Message -->
+			<Border IsVisible="{Binding HasError}"
+					Background="#FEF2F2" BorderBrush="#FECACA"
+					BorderThickness="1" CornerRadius="8"
+					Padding="12,8">
+			  <Grid ColumnDefinitions="Auto,*">
+				<TextBlock Text="&#x274C;" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+				<TextBlock Grid.Column="1"
+						   Text="{Binding ErrorMessage}"
+						   FontSize="13" Foreground="#DC2626"
+						   TextWrapping="Wrap"/>
+			  </Grid>
+			</Border>
+
+			<!-- Sign In Button -->
+			<Button Command="{Binding LoginCommand}"
+					HorizontalAlignment="Stretch"
+					HorizontalContentAlignment="Center"
+					Background="#2563EB"
+					Foreground="White"
+					CornerRadius="10"
+					Padding="0,13"
+					FontSize="14"
+					FontWeight="SemiBold"
+					IsEnabled="{Binding !IsLoading}">
+			  <Panel>
+				<TextBlock Text="Sign In" IsVisible="{Binding !IsLoading}"
+						   HorizontalAlignment="Center"/>
+				<TextBlock Text="Signing in..." IsVisible="{Binding IsLoading}"
+						   HorizontalAlignment="Center" Foreground="#BFDBFE"/>
+			  </Panel>
+			</Button>
+
+		  </StackPanel>
+		</Border>
+
+		<!-- Footer -->
+		<TextBlock Text="AutVent Desktop — Offline-first Business OS"
+				   FontSize="12" Foreground="#94A3B8"
+				   HorizontalAlignment="Center"
+				   Margin="0,20,0,0"/>
+
+	  </StackPanel>
+	</Grid>
+  </ScrollViewer>
+
+</UserControl>
