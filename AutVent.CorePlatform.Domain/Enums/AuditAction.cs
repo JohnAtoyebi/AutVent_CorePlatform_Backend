@@ -7,6 +7,9 @@ public enum AuditAction
     UserPasswordChanged,
     UserEmailChanged,
 
+    // Inventory
+    StockAdjusted,
+
     // Destructive / Deactivation
     ProductDeleted,
     StaffDeleted,
