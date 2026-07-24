@@ -10,6 +10,10 @@ public enum AuditAction
     // Inventory
     StockAdjusted,
 
+    // Store lifecycle
+    StoreCreated,
+    StoreUpdated,
+
     // Destructive / Deactivation
     ProductDeleted,
     StaffDeleted,

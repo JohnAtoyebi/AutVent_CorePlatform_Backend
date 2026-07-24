@@ -1,12 +1,13 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
+public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IStoreService
 {
     private const string SystemActor = "system";
 
@@ -76,6 +77,15 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
 
         await unitOfWork.CreateAsync(store, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreCreated,
+            nameof(Store),
+            $"Store '{store.Name}' created.",
+            businessId: store.BusinessId,
+            entityId: store.Id,
+            cancellationToken: cancellationToken);
 
         return ApiResponse<CreateStoreResponse>.Created(MapToResponse(store, storeCategory.Name, null, []), "Store created successfully");
     }
@@ -262,6 +272,15 @@ public sealed class StoreService(IUnitOfWork unitOfWork) : IStoreService
         store.DateUpdated = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreUpdated,
+            nameof(Store),
+            $"Store '{store.Name}' updated.",
+            businessId: store.BusinessId,
+            entityId: store.Id,
+            cancellationToken: cancellationToken);
 
         var bankAccounts = await GetBankAccountsAsync(store.BusinessId, cancellationToken);
         return ApiResponse<CreateStoreResponse>.Ok(MapToResponse(store, store.StoreCategory.Name, store.Business.LogoUrl, bankAccounts), "Store updated successfully");
