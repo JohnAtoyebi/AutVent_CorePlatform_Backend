@@ -72,15 +72,54 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
             return ApiResponse<BillingTransactionResponse>.Failed(
                 StatusCodes.Status409Conflict, "Transaction has already been verified.");
 
+        var now = DateTime.UtcNow;
+
         transaction.VerificationStatus = request.VerificationStatus;
         transaction.FailureReason = request.FailureReason;
         transaction.VerifiedAt = request.VerificationStatus == TransactionVerificationStatus.Verified
-            ? DateTime.UtcNow
+            ? now
             : null;
-        transaction.DateUpdated = DateTime.UtcNow;
+        transaction.DateUpdated = now;
         transaction.UpdatedBy = transaction.BusinessId.ToString();
 
         unitOfWork.Update(transaction);
+
+        if (request.VerificationStatus == TransactionVerificationStatus.Verified)
+        {
+            var planEndDate = transaction.BillingCycle == BillingCycle.Annual
+                ? now.AddYears(1)
+                : now.AddMonths(1);
+
+            var activeSubscriptions = await unitOfWork.Query<BusinessSubscription>()
+                .Where(x => x.BusinessId == transaction.BusinessId && x.IsActive && !x.IsDeleted)
+                .ToListAsync(cancellationToken);
+
+            foreach (var activeSubscription in activeSubscriptions)
+            {
+                activeSubscription.IsActive = false;
+                activeSubscription.Status = SubscriptionStatus.Expired;
+                activeSubscription.DateUpdated = now;
+                activeSubscription.UpdatedBy = transaction.BusinessId.ToString();
+                unitOfWork.Update(activeSubscription);
+            }
+
+            var businessSubscription = new BusinessSubscription
+            {
+                BusinessId = transaction.BusinessId,
+                SubscriptionPlanId = transaction.SubscriptionPlanId,
+                Status = SubscriptionStatus.Active,
+                TrialStartDate = now,
+                TrialEndDate = now,
+                PlanStartDate = now,
+                PlanEndDate = planEndDate,
+                IsActive = true,
+                CreatedBy = transaction.BusinessId.ToString(),
+                DateCreated = now
+            };
+
+            await unitOfWork.CreateAsync(businessSubscription, cancellationToken);
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ApiResponse<BillingTransactionResponse>.Ok(MapToResponse(transaction, transaction.SubscriptionPlan.Name));
@@ -159,6 +198,95 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
         return ApiResponse<PagedResponse<BillingTransactionResponse>>.Ok(paged);
     }
 
+    public async Task<ApiResponse<PagedResponse<BusinessSubscriptionResponse>>> GetSubscriptionsByBusinessIdAsync(
+        long businessId,
+        long userId,
+        PagedQueryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.Id == businessId && !x.IsDeleted, cancellationToken);
+
+        if (business is null)
+            return ApiResponse<PagedResponse<BusinessSubscriptionResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found.");
+
+        if (business.UserId != userId)
+            return ApiResponse<PagedResponse<BusinessSubscriptionResponse>>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this business subscriptions.");
+
+        var query = unitOfWork.Query<BusinessSubscription>()
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.BusinessId == businessId && !x.IsDeleted);
+
+        if (request.Filters is not null &&
+            request.Filters.TryGetValue("status", out var statusFilter) &&
+            Enum.TryParse<SubscriptionStatus>(statusFilter, ignoreCase: true, out var parsedStatus))
+        {
+            query = query.Where(x => x.Status == parsedStatus);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        query = request.SortBy?.ToLower() switch
+        {
+            "oldest" => query.OrderBy(x => x.Id),
+            _ => query.OrderByDescending(x => x.Id)
+        };
+
+        var items = await query
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .Select(x => MapToResponse(x, x.SubscriptionPlan.Name))
+            .ToListAsync(cancellationToken);
+
+        var paged = new PagedResponse<BusinessSubscriptionResponse>
+        {
+            PageNumber = request.PageNumber,
+            PageSize = request.PageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize),
+            Items = items
+        };
+
+        return ApiResponse<PagedResponse<BusinessSubscriptionResponse>>.Ok(paged);
+    }
+
+    public async Task<ApiResponse<BusinessSubscriptionResponse>> GetActiveSubscriptionByBusinessIdAsync(
+        long businessId,
+        long userId,
+        CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.Id == businessId && !x.IsDeleted, cancellationToken);
+
+        if (business is null)
+            return ApiResponse<BusinessSubscriptionResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found.");
+
+        if (business.UserId != userId)
+            return ApiResponse<BusinessSubscriptionResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this business subscriptions.");
+
+        var activeSubscription = await unitOfWork.Query<BusinessSubscription>()
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.BusinessId == businessId && x.IsActive && !x.IsDeleted && x.Status == SubscriptionStatus.Active)
+            .OrderByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeSubscription is null)
+            return ApiResponse<BusinessSubscriptionResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Active subscription not found for this business.");
+
+        return ApiResponse<BusinessSubscriptionResponse>.Ok(
+            MapToResponse(activeSubscription, activeSubscription.SubscriptionPlan.Name));
+    }
+
     private static BillingTransactionResponse MapToResponse(BillingSubscriptionTransaction t, string planName) =>
         new()
         {
@@ -177,4 +305,21 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
             DateCreated = t.DateCreated,
             DateUpdated = t.DateUpdated
         };
+
+    private static BusinessSubscriptionResponse MapToResponse(BusinessSubscription s, string planName) =>
+        new()
+        {
+            Id = s.Id,
+            BusinessId = s.BusinessId,
+            SubscriptionPlanId = s.SubscriptionPlanId,
+            SubscriptionPlanName = planName,
+            Status = s.Status.ToString(),
+            TrialStartDate = s.TrialStartDate,
+            TrialEndDate = s.TrialEndDate,
+            PlanStartDate = s.PlanStartDate,
+            PlanEndDate = s.PlanEndDate,
+            DateCreated = s.DateCreated,
+            DateUpdated = s.DateUpdated
+        };
 }
+

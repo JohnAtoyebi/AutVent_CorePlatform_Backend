@@ -8,3 +8,6 @@
 - Use `Id` for ordering (`OrderBy`/`OrderByDescending`) instead of name/date fields in this codebase.
 - Prefer SKU/text identifiers to be uppercase alphanumeric (capital letters and numbers).
 - Ignore appsettings files unless the user explicitly asks to modify them.
+
+## Subscription Management
+- Create an active business subscription when required, rather than just fetching subscriptions by business ID.

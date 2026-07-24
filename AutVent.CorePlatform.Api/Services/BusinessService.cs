@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IAuditLogService auditLogService) : IBusinessService
+public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IAuditLogService auditLogService, INotificationService notificationService) : IBusinessService
 {
     private const string SystemActor = "system";
 
@@ -126,6 +126,18 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
             entityId: business.Id,
             cancellationToken: cancellationToken);
 
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = userId,
+                BusinessId = business.Id,
+                Type = NotificationType.General,
+                Title = "Business Created",
+                Message = $"Business '{business.BusinessName}' was created successfully.",
+                ActionUrl = "/business"
+            },
+            cancellationToken);
+
         var response = MapToResponse(business, industry.Name, staffRange.Name);
         return ApiResponse<CreateBusinessResponse>.Created(response, "Business created successfully");
     }
@@ -239,6 +251,27 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         business.DateUpdated = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.BusinessUpdated,
+            nameof(Business),
+            $"Business '{business.BusinessName}' updated.",
+            businessId: business.Id,
+            entityId: business.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = userId,
+                BusinessId = business.Id,
+                Type = NotificationType.General,
+                Title = "Business Updated",
+                Message = $"Business '{business.BusinessName}' details were updated.",
+                ActionUrl = "/business"
+            },
+            cancellationToken);
 
         return ApiResponse<CreateBusinessResponse>.Ok(
             MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name),
