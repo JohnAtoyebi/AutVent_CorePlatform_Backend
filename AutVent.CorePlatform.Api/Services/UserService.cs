@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class UserService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IUserService
+public sealed class UserService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, INotificationService notificationService) : IUserService
 {
     private const string SystemActor = "system";
 
@@ -91,6 +91,25 @@ public sealed class UserService(IUnitOfWork unitOfWork, IAuditLogService auditLo
 
         unitOfWork.Update(user);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserProfileUpdated,
+            nameof(User),
+            $"User '{user.EmailAddress}' updated profile details.",
+            entityId: user.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.General,
+                Title = "Profile Updated",
+                Message = "Your profile details were updated successfully.",
+                ActionUrl = "/profile"
+            },
+            cancellationToken);
 
         return ApiResponse<UpdateProfileResponse>.Ok(
             new UpdateProfileResponse

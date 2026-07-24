@@ -4,13 +4,14 @@ using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Api.Common.Email;
 using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IJwtTokenService jwtTokenService) : IOnboardingService
+public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IJwtTokenService jwtTokenService, IAuditLogService auditLogService, INotificationService notificationService) : IOnboardingService
 {
     private const string SystemActor = "system";
 
@@ -100,6 +101,25 @@ public sealed class OnboardingService(IUnitOfWork unitOfWork, IEmailProvider ema
         var otp = await CreateAndTrackOtpAsync(normalizedEmail, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            user.Id,
+            AuditAction.UserProfileCreated,
+            nameof(User),
+            $"User '{user.EmailAddress}' profile created.",
+            entityId: user.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = user.Id,
+                Type = NotificationType.General,
+                Title = "Profile Created",
+                Message = "Your profile was created successfully.",
+                ActionUrl = "/profile"
+            },
+            cancellationToken);
 
         await emailProvider.SendAsync(
             EmailTemplates.OtpVerification(normalizedEmail, user.FullName, otp.Code, otp.DateExpired, emailOptions),

@@ -9,4 +9,6 @@ public interface IBillingService
     Task<ApiResponse<BillingTransactionResponse>> VerifyAsync(VerifyBillingTransactionRequest request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BillingTransactionResponse>> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResponse<BillingTransactionResponse>>> GetAllAsync(long businessId, PagedQueryRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResponse<BusinessSubscriptionResponse>>> GetSubscriptionsByBusinessIdAsync(long businessId, long userId, PagedQueryRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BusinessSubscriptionResponse>> GetActiveSubscriptionByBusinessIdAsync(long businessId, long userId, CancellationToken cancellationToken = default);
 }
