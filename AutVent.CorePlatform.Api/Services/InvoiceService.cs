@@ -1,17 +1,25 @@
-﻿using AutVent.CorePlatform.Api.Common.Requests;
+﻿using AutVent.CorePlatform.Api.Common.Email;
+using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
+using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
 using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService notificationService) : IInvoiceService
+public sealed class InvoiceService(
+    IUnitOfWork unitOfWork,
+    INotificationService notificationService,
+    IEmailProvider emailProvider,
+    IOptions<EmailOptions> emailOptions) : IInvoiceService
 {
     private const decimal VatRate = 7.5m;
     private const string SystemActor = "system";
+    private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5MB
 
     public async Task<ApiResponse<InvoiceResponse>> CreateAsync(long storeId, long userId, CreateInvoiceRequest request, CancellationToken cancellationToken = default)
     {
@@ -76,6 +84,18 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService 
 
         await unitOfWork.CreateAsync(invoice, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Send invoice to customer via email if document is provided and customer has email
+        if (request.InvoiceDocument != null && request.CustomerId.HasValue)
+        {
+            var customer = await unitOfWork.Query<Customer>()
+                .FirstOrDefaultAsync(x => x.Id == request.CustomerId.Value && !x.IsDeleted, cancellationToken);
+
+            if (customer != null && !string.IsNullOrWhiteSpace(customer.Email))
+            {
+                await SendInvoiceEmailAsync(invoice, customer, request.InvoiceDocument, cancellationToken);
+            }
+        }
 
         return ApiResponse<InvoiceResponse>.Created(MapToResponse(invoice, products), "Invoice created successfully");
     }
@@ -199,7 +219,7 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService 
         return ApiResponse<InvoiceResponse>.Ok(MapToResponse(invoice, products));
     }
 
-    public async Task<ApiResponse<InvoiceResponse>> MarkAsSentAsync(long storeId, long invoiceId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<InvoiceResponse>> MarkAsSentAsync(long storeId, long invoiceId, MarkInvoiceAsSentRequest request, CancellationToken cancellationToken = default)
     {
         var invoice = await unitOfWork.Query<Invoice>()
             .Include(x => x.Customer)
@@ -218,6 +238,12 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService 
         invoice.DateUpdated = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Send invoice to customer via email if document is provided
+        if (request.InvoiceDocument != null && invoice.Customer != null && !string.IsNullOrWhiteSpace(invoice.Customer.Email))
+        {
+            await SendInvoiceEmailAsync(invoice, invoice.Customer, request.InvoiceDocument, cancellationToken);
+        }
 
         var ownerId = await GetStoreOwnerIdAsync(storeId, cancellationToken);
         if (ownerId.HasValue)
@@ -404,4 +430,45 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService 
     private static ApiResponse<InvoiceResponse> NotFound(string message, string code, string field) =>
         ApiResponse<InvoiceResponse>.Failed(StatusCodes.Status404NotFound, message,
             [new ApiError(code, message, field)]);
+
+    private async Task SendInvoiceEmailAsync(Invoice invoice, Customer customer, IFormFile document, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (document.Length == 0 || document.Length > MaxFileSizeBytes)
+            {
+                return;
+            }
+
+            // Read file content and convert to base64
+            using var memoryStream = new MemoryStream();
+            await document.CopyToAsync(memoryStream, cancellationToken);
+            var fileContent = Convert.ToBase64String(memoryStream.ToArray());
+
+            // Create email attachment
+            var attachment = new EmailAttachment
+            {
+                Filename = string.IsNullOrWhiteSpace(document.FileName) ? $"Invoice_{invoice.InvoiceNumber}.pdf" : document.FileName,
+                Content = fileContent,
+                ContentType = document.ContentType ?? "application/pdf"
+            };
+
+            // Create and send email
+            var emailMessage = EmailTemplates.InvoiceNotification(
+                toEmail: customer.Email,
+                customerName: customer.FullName,
+                invoiceNumber: invoice.InvoiceNumber,
+                totalAmount: invoice.TotalAmount,
+                dueDate: invoice.DueDate,
+                attachments: new List<EmailAttachment> { attachment },
+                options: emailOptions);
+
+            await emailProvider.SendAsync(emailMessage, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the invoice creation
+            System.Diagnostics.Debug.WriteLine($"Failed to send invoice email: {ex.Message}");
+        }
+    }
 }

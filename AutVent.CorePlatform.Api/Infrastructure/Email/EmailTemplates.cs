@@ -175,4 +175,37 @@ public static class EmailTemplates
             }
         };
     }
+
+    public static EmailMessage InvoiceNotification(
+        string toEmail,
+        string customerName,
+        string invoiceNumber,
+        decimal totalAmount,
+        DateTime dueDate,
+        List<EmailAttachment>? attachments = null,
+        IOptions<EmailOptions>? options = null)
+    {
+        var templateAlias = options?.Value.Resend.Templates.InvoiceNotification;
+
+        if (string.IsNullOrWhiteSpace(templateAlias))
+        {
+            throw new InvalidOperationException("InvoiceNotification template alias is not configured.");
+        }
+
+        return new EmailMessage
+        {
+            To = toEmail,
+            Subject = $"Invoice {invoiceNumber} - Payment",
+            TemplateAlias = templateAlias,
+            TemplateVariables = new Dictionary<string, object>
+            {
+                ["customerName"] = customerName,
+                ["invoiceNumber"] = invoiceNumber,
+                ["totalAmount"] = totalAmount,
+                ["dueDate"] = dueDate.ToString("yyyy-MM-dd"),
+                ["year"] = DateTime.UtcNow.Year
+            },
+            Attachments = attachments
+        };
+    }
 }
