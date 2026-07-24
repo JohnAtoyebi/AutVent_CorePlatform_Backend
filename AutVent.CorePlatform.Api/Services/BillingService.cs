@@ -7,19 +7,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
+public sealed class BillingService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, INotificationService notificationService) : IBillingService
 {
     public async Task<ApiResponse<BillingTransactionResponse>> CreateAsync(
-        long businessId,
+        long userId,
         CreateBillingTransactionRequest request,
         CancellationToken cancellationToken = default)
     {
         var business = await unitOfWork.Query<Business>()
-            .FirstOrDefaultAsync(x => x.Id == businessId && !x.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(x => x.UserId == userId && !x.IsDeleted, cancellationToken);
 
         if (business is null)
             return ApiResponse<BillingTransactionResponse>.Failed(
-                StatusCodes.Status404NotFound, "Business not found.");
+                StatusCodes.Status404NotFound, "Business not found for this user.");
 
         var plan = await unitOfWork.Query<SubscriptionPlanDefinition>()
             .FirstOrDefaultAsync(x => x.Id == request.SubscriptionPlanId && !x.IsDeleted, cancellationToken);
@@ -37,7 +37,7 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
 
         var transaction = new BillingSubscriptionTransaction
         {
-            BusinessId = businessId,
+            BusinessId = business.Id,
             SubscriptionPlanId = request.SubscriptionPlanId,
             TransactionReference = request.TransactionReference,
             ProviderReference = request.ProviderReference,
@@ -46,7 +46,7 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
             BillingCycle = request.BillingCycle,
             VerificationStatus = TransactionVerificationStatus.Pending,
             IsActive = true,
-            CreatedBy = businessId.ToString(),
+            CreatedBy = business.Id.ToString(),
             DateCreated = DateTime.UtcNow
         };
 
@@ -63,6 +63,9 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
         var transaction = await unitOfWork.Query<BillingSubscriptionTransaction>()
             .Include(x => x.SubscriptionPlan)
             .FirstOrDefaultAsync(x => x.TransactionReference == request.TransactionReference, cancellationToken);
+
+        User? businessOwner = null;
+        Business? business = null;
 
         if (transaction is null)
             return ApiResponse<BillingTransactionResponse>.Failed(
@@ -86,6 +89,15 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
 
         if (request.VerificationStatus == TransactionVerificationStatus.Verified)
         {
+            business = await unitOfWork.Query<Business>()
+                .FirstOrDefaultAsync(x => x.Id == transaction.BusinessId && !x.IsDeleted, cancellationToken);
+
+            if (business is not null)
+            {
+                businessOwner = await unitOfWork.Query<User>()
+                    .FirstOrDefaultAsync(x => x.Id == business.UserId && !x.IsDeleted, cancellationToken);
+            }
+
             var planEndDate = transaction.BillingCycle == BillingCycle.Annual
                 ? now.AddYears(1)
                 : now.AddMonths(1);
@@ -122,6 +134,30 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        if (request.VerificationStatus == TransactionVerificationStatus.Verified && business is not null && businessOwner is not null)
+        {
+            await auditLogService.LogAsync(
+                businessOwner.Id,
+                AuditAction.SubscriptionPaymentMade,
+                nameof(BillingSubscriptionTransaction),
+                $"Subscription payment verified for business '{business.BusinessName}'.",
+                businessId: business.Id,
+                entityId: transaction.Id,
+                cancellationToken: cancellationToken);
+
+            await notificationService.CreateAsync(
+                new CreateNotificationRequest
+                {
+                    UserId = businessOwner.Id,
+                    BusinessId = business.Id,
+                    Type = NotificationType.SubscriptionUpgraded,
+                    Title = "Subscription Payment Successful",
+                    Message = $"Payment for the {transaction.SubscriptionPlan.Name} plan was successful.",
+                    ActionUrl = "/billing/businesses/" + business.Id + "/subscriptions/active"
+                },
+                cancellationToken);
+        }
+
         return ApiResponse<BillingTransactionResponse>.Ok(MapToResponse(transaction, transaction.SubscriptionPlan.Name));
     }
 
@@ -142,13 +178,21 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
     }
 
     public async Task<ApiResponse<PagedResponse<BillingTransactionResponse>>> GetAllAsync(
-        long businessId,
+        long userId,
         PagedQueryRequest request,
         CancellationToken cancellationToken = default)
     {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.UserId == userId && !x.IsDeleted, cancellationToken);
+
+        if (business is null)
+            return ApiResponse<PagedResponse<BillingTransactionResponse>>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found for this user.");
+
         var query = unitOfWork.Query<BillingSubscriptionTransaction>()
             .Include(x => x.SubscriptionPlan)
-            .Where(x => x.BusinessId == businessId && !x.IsDeleted);
+            .Where(x => x.BusinessId == business.Id && !x.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
