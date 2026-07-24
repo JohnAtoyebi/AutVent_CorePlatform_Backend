@@ -5,6 +5,7 @@ namespace AutVent.CorePlatform.Api.Common.Responses;
 public sealed class NotificationResponse
 {
     public long Id { get; init; }
+    public long? StoreId { get; init; }
     public NotificationType Type { get; init; }
     public string Title { get; init; } = string.Empty;
     public string Message { get; init; } = string.Empty;

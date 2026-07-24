@@ -11,6 +11,10 @@ public class Notification : BaseEntity
     public long? BusinessId { get; set; }
     public virtual Business? Business { get; set; }
 
+    /// <summary>Optional: ties the notification to a specific store for multi-store context.</summary>
+    public long? StoreId { get; set; }
+    public virtual Store? Store { get; set; }
+
     public NotificationType Type { get; set; }
     public NotificationChannel Channel { get; set; } = NotificationChannel.InApp;
 
