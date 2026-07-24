@@ -166,6 +166,85 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name));
     }
 
+    public async Task<ApiResponse<CreateBusinessResponse>> UpdateAsync(long id, UpdateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .Include(x => x.BusinessIndustry)
+            .Include(x => x.StaffRange)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this id", nameof(id))]);
+        }
+
+        if (business.UserId != userId)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this business",
+                [new ApiError("UnauthorizedBusiness", "This business does not belong to your account", nameof(id))]);
+        }
+
+        if (request.Name is not null)
+            business.BusinessName = request.Name.Trim();
+
+        if (request.IndustryId.HasValue)
+        {
+            var industry = await unitOfWork.Query<BusinessIndustry>()
+                .FirstOrDefaultAsync(x => x.Id == request.IndustryId.Value, cancellationToken);
+
+            if (industry is null)
+            {
+                return ApiResponse<CreateBusinessResponse>.Failed(
+                    StatusCodes.Status400BadRequest,
+                    "Industry not found",
+                    [new ApiError("InvalidIndustry", "Industry not found", nameof(request.IndustryId))]);
+            }
+
+            business.BusinessIndustryId = industry.Id;
+            business.BusinessIndustry = industry;
+        }
+
+        if (request.StaffRangeId.HasValue)
+        {
+            var staffRange = await unitOfWork.Query<StaffRange>()
+                .FirstOrDefaultAsync(x => x.Id == request.StaffRangeId.Value, cancellationToken);
+
+            if (staffRange is null)
+            {
+                return ApiResponse<CreateBusinessResponse>.Failed(
+                    StatusCodes.Status400BadRequest,
+                    "Staff range not found",
+                    [new ApiError("InvalidStaffRange", "Staff range not found", nameof(request.StaffRangeId))]);
+            }
+
+            business.StaffRangeId = staffRange.Id;
+            business.StaffRange = staffRange;
+        }
+
+        if (request.LogoUrl is not null) business.LogoUrl = request.LogoUrl.Trim();
+        if (request.Email is not null) business.Email = request.Email.Trim().ToLowerInvariant();
+        if (request.PhoneNumber is not null) business.PhoneNumber = request.PhoneNumber.Trim();
+        if (request.Website is not null) business.Website = request.Website.Trim();
+        if (request.Address is not null) business.Address = request.Address.Trim();
+        if (request.City is not null) business.City = request.City.Trim();
+        if (request.State is not null) business.State = request.State.Trim();
+        if (request.Country is not null) business.Country = request.Country.Trim();
+
+        business.UpdatedBy = SystemActor;
+        business.DateUpdated = DateTime.UtcNow;
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<CreateBusinessResponse>.Ok(
+            MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name),
+            "Business updated successfully");
+    }
+
     public async Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
     {
         var pageNumber = Math.Max(1, request.PageNumber);

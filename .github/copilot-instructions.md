@@ -7,3 +7,4 @@
 - Use enum types for payment and discount fields (e.g., PaymentMethod and DiscountType) instead of strings in this codebase.
 - Use `Id` for ordering (`OrderBy`/`OrderByDescending`) instead of name/date fields in this codebase.
 - Prefer SKU/text identifiers to be uppercase alphanumeric (capital letters and numbers).
+- Ignore appsettings files unless the user explicitly asks to modify them.
