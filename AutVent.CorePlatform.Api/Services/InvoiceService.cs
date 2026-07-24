@@ -52,7 +52,7 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService 
             DiscountType = request.DiscountType,
             DiscountValue = request.DiscountValue,
             PaymentMethod = request.PaymentMethod,
-            VatRate = VatRate,
+            VatRate = request.TaxAmount,
             Status = InvoiceStatus.Draft,
             Notes = request.Notes?.Trim(),
             CreatedBy = userId.ToString(),
@@ -171,6 +171,7 @@ public sealed class InvoiceService(IUnitOfWork unitOfWork, INotificationService 
         invoice.DiscountType = request.DiscountType;
         invoice.DiscountValue = request.DiscountValue;
         invoice.PaymentMethod = request.PaymentMethod;
+        invoice.VatRate = request.TaxAmount;
         invoice.Notes = request.Notes?.Trim();
         invoice.UpdatedBy = userId.ToString();
         invoice.DateUpdated = DateTime.UtcNow;

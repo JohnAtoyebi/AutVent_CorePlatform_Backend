@@ -38,6 +38,10 @@ public sealed class CreateInvoiceRequest
     [Range(0, double.MaxValue)]
     public decimal DiscountValue { get; init; }
 
+    /// <summary>Tax/VAT rate as percentage (e.g., 7.5 for 7.5%).</summary>
+    [Range(0, 100)]
+    public decimal TaxAmount { get; init; } = 7.5m;
+
     [Required]
     [EnumDataType(typeof(SalePaymentMethod))]
     public SalePaymentMethod PaymentMethod { get; init; }
@@ -69,6 +73,10 @@ public sealed class UpdateInvoiceRequest
 
     [Range(0, double.MaxValue)]
     public decimal DiscountValue { get; init; }
+
+    /// <summary>Tax/VAT rate as percentage (e.g., 7.5 for 7.5%).</summary>
+    [Range(0, 100)]
+    public decimal TaxAmount { get; init; } = 7.5m;
 
     [Required]
     [EnumDataType(typeof(SalePaymentMethod))]
