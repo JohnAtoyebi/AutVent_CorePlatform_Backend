@@ -16,6 +16,7 @@ public sealed class NotificationService(IUnitOfWork unitOfWork) : INotificationS
         var notification = new Notification
         {
             UserId = request.UserId,
+            StoreId = request.StoreId,
             BusinessId = request.BusinessId,
             Type = request.Type,
             Channel = NotificationChannel.InApp,
@@ -32,13 +33,20 @@ public sealed class NotificationService(IUnitOfWork unitOfWork) : INotificationS
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<ApiResponse<PagedResponse<NotificationResponse>>> GetFeedAsync(long userId, NotificationFeedRequest request, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<PagedResponse<NotificationResponse>>> GetFeedAsync(long userId, long? storeId, NotificationFeedRequest request, CancellationToken cancellationToken = default)
     {
         var query = unitOfWork.Query<Notification>()
             .Where(x => x.UserId == userId && !x.IsDeleted);
 
+        // Filter by store if provided
+        if (storeId.HasValue && storeId.Value > 0)
+            query = query.Where(x => x.StoreId == storeId.Value);
+
         if (request.IsRead.HasValue)
             query = query.Where(x => x.IsRead == request.IsRead.Value);
+
+        if (request.StoreId.HasValue && request.StoreId.Value > 0)
+            query = query.Where(x => x.StoreId == request.StoreId.Value);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -60,18 +68,30 @@ public sealed class NotificationService(IUnitOfWork unitOfWork) : INotificationS
         return ApiResponse<PagedResponse<NotificationResponse>>.Ok(paged);
     }
 
-    public async Task<ApiResponse<UnreadCountResponse>> GetUnreadCountAsync(long userId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<UnreadCountResponse>> GetUnreadCountAsync(long userId, long? storeId, CancellationToken cancellationToken = default)
     {
-        var count = await unitOfWork.Query<Notification>()
-            .CountAsync(x => x.UserId == userId && !x.IsRead && !x.IsDeleted, cancellationToken);
+        var query = unitOfWork.Query<Notification>()
+            .Where(x => x.UserId == userId && !x.IsRead && !x.IsDeleted);
+
+        // Filter by store if provided
+        if (storeId.HasValue && storeId.Value > 0)
+            query = query.Where(x => x.StoreId == storeId.Value);
+
+        var count = await query.CountAsync(cancellationToken);
 
         return ApiResponse<UnreadCountResponse>.Ok(new UnreadCountResponse { Count = count });
     }
 
-    public async Task<ApiResponse<bool>> MarkReadAsync(long userId, long notificationId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<bool>> MarkReadAsync(long userId, long? storeId, long notificationId, CancellationToken cancellationToken = default)
     {
-        var notification = await unitOfWork.Query<Notification>()
-            .FirstOrDefaultAsync(x => x.Id == notificationId && x.UserId == userId && !x.IsDeleted, cancellationToken);
+        var query = unitOfWork.Query<Notification>()
+            .Where(x => x.Id == notificationId && x.UserId == userId && !x.IsDeleted);
+
+        // Filter by store if provided
+        if (storeId.HasValue && storeId.Value > 0)
+            query = query.Where(x => x.StoreId == storeId.Value);
+
+        var notification = await query.FirstOrDefaultAsync(cancellationToken);
 
         if (notification is null)
             return ApiResponse<bool>.Failed(StatusCodes.Status404NotFound,
@@ -89,11 +109,16 @@ public sealed class NotificationService(IUnitOfWork unitOfWork) : INotificationS
         return ApiResponse<bool>.Ok(true, "Notification marked as read");
     }
 
-    public async Task<ApiResponse<bool>> MarkAllReadAsync(long userId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<bool>> MarkAllReadAsync(long userId, long? storeId, CancellationToken cancellationToken = default)
     {
-        var unread = await unitOfWork.Query<Notification>()
-            .Where(x => x.UserId == userId && !x.IsRead && !x.IsDeleted)
-            .ToListAsync(cancellationToken);
+        var query = unitOfWork.Query<Notification>()
+            .Where(x => x.UserId == userId && !x.IsRead && !x.IsDeleted);
+
+        // Filter by store if provided
+        if (storeId.HasValue && storeId.Value > 0)
+            query = query.Where(x => x.StoreId == storeId.Value);
+
+        var unread = await query.ToListAsync(cancellationToken);
 
         if (unread.Count == 0)
             return ApiResponse<bool>.Ok(true, "No unread notifications");
@@ -111,10 +136,16 @@ public sealed class NotificationService(IUnitOfWork unitOfWork) : INotificationS
         return ApiResponse<bool>.Ok(true, $"{unread.Count} notification(s) marked as read");
     }
 
-    public async Task<ApiResponse<bool>> DeleteAsync(long userId, long notificationId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponse<bool>> DeleteAsync(long userId, long? storeId, long notificationId, CancellationToken cancellationToken = default)
     {
-        var notification = await unitOfWork.Query<Notification>()
-            .FirstOrDefaultAsync(x => x.Id == notificationId && x.UserId == userId && !x.IsDeleted, cancellationToken);
+        var query = unitOfWork.Query<Notification>()
+            .Where(x => x.Id == notificationId && x.UserId == userId && !x.IsDeleted);
+
+        // Filter by store if provided
+        if (storeId.HasValue && storeId.Value > 0)
+            query = query.Where(x => x.StoreId == storeId.Value);
+
+        var notification = await query.FirstOrDefaultAsync(cancellationToken);
 
         if (notification is null)
             return ApiResponse<bool>.Failed(StatusCodes.Status404NotFound,
@@ -132,6 +163,7 @@ public sealed class NotificationService(IUnitOfWork unitOfWork) : INotificationS
     private static NotificationResponse MapToResponse(Notification n) => new()
     {
         Id = n.Id,
+        StoreId = n.StoreId,
         Type = n.Type,
         Title = n.Title,
         Message = n.Message,

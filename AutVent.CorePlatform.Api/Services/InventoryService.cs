@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
+public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IInventoryService
 {
     private const string SystemActor = "system";
 
@@ -312,6 +312,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
         }
 
         var now = DateTime.UtcNow;
+        var oldQuantity = product.Quantity;
 
         if (request.Type == StockAdjustmentType.StockIn)
         {
@@ -348,6 +349,23 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
 
         unitOfWork.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Log audit trail for stock adjustment
+        var adjustmentType = request.Type == StockAdjustmentType.StockIn ? "Stock In" : "Stock Out";
+        var description = $"{adjustmentType} - {request.Quantity} units. Reason: {request.Reason}";
+        var oldValues = $"Quantity: {oldQuantity}";
+        var newValues = $"Quantity: {product.Quantity}";
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StockAdjusted,
+            "Product",
+            description,
+            product.Store.BusinessId,
+            product.Id,
+            oldValues,
+            newValues,
+            cancellationToken: cancellationToken);
 
         var response = new InventoryItemResponse
         {

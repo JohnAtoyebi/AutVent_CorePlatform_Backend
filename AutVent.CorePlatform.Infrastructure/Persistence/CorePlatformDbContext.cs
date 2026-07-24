@@ -309,6 +309,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.Message).HasMaxLength(1000).IsRequired();
             entity.Property(x => x.ActionUrl).HasMaxLength(500);
             entity.HasIndex(x => new { x.UserId, x.IsRead });
+            entity.HasIndex(x => new { x.UserId, x.StoreId, x.IsRead });
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -318,6 +319,11 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.HasOne(x => x.Business)
                 .WithMany()
                 .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
