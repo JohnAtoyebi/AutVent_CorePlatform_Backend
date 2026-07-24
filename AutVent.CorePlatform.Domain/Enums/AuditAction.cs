@@ -20,5 +20,6 @@ public enum AuditAction
     BusinessUpdated = 15,
     StoreCreated = 16,
     StoreUpdated = 17,
+    SubscriptionPaymentMade = 18,
 }
 
