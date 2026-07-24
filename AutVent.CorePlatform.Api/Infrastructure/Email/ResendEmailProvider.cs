@@ -34,6 +34,13 @@ public sealed class ResendEmailProvider(
             var client = httpClientFactory.CreateClient(nameof(ResendEmailProvider));
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", resend.ApiKey);
 
+            var attachments = message.Attachments?.Select(a => new
+            {
+                filename = a.Filename,
+                content = a.Content,
+                content_type = a.ContentType
+            }).ToList();
+
             var payload = new
             {
                 from = $"{_options.FromName} <{_options.FromAddress}>",
@@ -42,7 +49,8 @@ public sealed class ResendEmailProvider(
                 {
                     id = message.TemplateAlias,
                     variables = message.TemplateVariables ?? new Dictionary<string, object>()
-                }
+                },
+                attachments = attachments
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions

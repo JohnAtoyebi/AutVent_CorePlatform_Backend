@@ -24,4 +24,5 @@ public sealed class ResendTemplates
     public string BusinessWelcome { get; init; } = string.Empty;
     public string ContactSupport { get; init; } = string.Empty;
     public string WaitlistConfirmation { get; init; } = string.Empty;
+    public string InvoiceNotification { get; init; } = string.Empty;
 }

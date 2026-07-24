@@ -140,11 +140,13 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
             sourceProduct.DateUpdated = now;
             sourceProduct.UpdatedBy = SystemActor;
             unitOfWork.Update(sourceProduct);
+            await unitOfWork.SaveChangesAsync();
 
             destinationProduct.Quantity += item.Quantity;
             destinationProduct.DateUpdated = now;
             destinationProduct.UpdatedBy = SystemActor;
             unitOfWork.Update(destinationProduct);
+            await unitOfWork.SaveChangesAsync();
 
             transferItems.Add(new StockTransferItem
             {
