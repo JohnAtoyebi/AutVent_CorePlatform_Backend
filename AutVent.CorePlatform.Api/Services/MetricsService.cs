@@ -9,7 +9,7 @@ namespace AutVent.CorePlatform.Api.Services;
 
 public sealed class MetricsService(IUnitOfWork unitOfWork) : IMetricsService
 {
-    private const long DefaultLowStockThreshold = 10;
+    private const long DefaultLowStockThreshold = 5;
 
     public async Task<ApiResponse<MetricsResponse>> GetAsync(MetricsRequest request, long userId, CancellationToken cancellationToken = default)
     {
