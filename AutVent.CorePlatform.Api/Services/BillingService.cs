@@ -274,7 +274,7 @@ public sealed class BillingService(IUnitOfWork unitOfWork) : IBillingService
 
         var activeSubscription = await unitOfWork.Query<BusinessSubscription>()
             .Include(x => x.SubscriptionPlan)
-            .Where(x => x.BusinessId == businessId && x.IsActive && !x.IsDeleted && x.Status == SubscriptionStatus.Active)
+            .Where(x => x.BusinessId == businessId && x.IsActive && !x.IsDeleted)
             .OrderByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
