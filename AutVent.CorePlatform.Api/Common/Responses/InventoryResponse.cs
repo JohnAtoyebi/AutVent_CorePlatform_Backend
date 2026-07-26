@@ -30,3 +30,12 @@ public sealed class InventoryItemResponse
     public string ProductCategory { get; init; } = string.Empty;
     public string? CostPrice { get; init; }
 }
+
+public sealed class BusinessInventorySummaryResponse
+{
+    public long BusinessId { get; init; }
+    public long LowStockCount { get; init; }
+    public long OutOfStockCount { get; init; }
+    public decimal TotalStockValue { get; init; }
+    public long StockLocationCount { get; init; }
+}
