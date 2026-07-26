@@ -10,6 +10,7 @@ namespace AutVent.CorePlatform.Api.Services;
 public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IInventoryService
 {
     private const string SystemActor = "system";
+    private const long DefaultLowStockThreshold = 5;
 
     public async Task<ApiResponse<InventorySummaryResponse>> GetSummaryAsync(InventorySummaryFilterRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
     {
@@ -83,8 +84,8 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 x.StoreId == storeId &&
                 x.DateCreated >= startDate &&
                 x.DateCreated <= endDate &&
-                x.ReorderThreshold.HasValue &&
-                x.Quantity <= x.ReorderThreshold.Value)
+                x.Quantity > 0 &&
+                x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold))
             .CountAsync(cancellationToken);
 
         var previousLowStockCount = await unitOfWork.Query<Product>()
@@ -92,8 +93,8 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 x.StoreId == storeId &&
                 x.DateCreated >= previousStartDate &&
                 x.DateCreated < previousEndDate &&
-                x.ReorderThreshold.HasValue &&
-                x.Quantity <= x.ReorderThreshold.Value)
+                x.Quantity > 0 &&
+                x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold))
             .CountAsync(cancellationToken);
 
         var outOfStockCount = await unitOfWork.Query<Product>()
@@ -207,16 +208,16 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 query = stockStatus switch
                 {
                     InventoryStockStatus.OutOfStock => query.Where(x => x.Quantity == 0),
-                    InventoryStockStatus.LowStock   => query.Where(x => x.Quantity > 0 && x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value),
-                    InventoryStockStatus.InStock    => query.Where(x => x.Quantity > 0 && (!x.ReorderThreshold.HasValue || x.Quantity > x.ReorderThreshold.Value)),
+                    InventoryStockStatus.LowStock   => query.Where(x => x.Quantity > 0 && x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold)),
+                    InventoryStockStatus.InStock    => query.Where(x => x.Quantity > 0 && x.Quantity > (x.ReorderThreshold ?? DefaultLowStockThreshold)),
                     _ => query
                 };
             }
             else if (request.Filters.TryGetValue("isLowStock", out var isLowStockFilter) && bool.TryParse(isLowStockFilter, out var isLowStock))
             {
                 query = isLowStock
-                    ? query.Where(x => x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value)
-                    : query.Where(x => !x.ReorderThreshold.HasValue || x.Quantity > x.ReorderThreshold.Value);
+                    ? query.Where(x => x.Quantity > 0 && x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold))
+                    : query.Where(x => x.Quantity == 0 || x.Quantity > (x.ReorderThreshold ?? DefaultLowStockThreshold));
             }
 
             if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
@@ -262,7 +263,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 Sku = x.Sku,
                 Quantity = x.Quantity,
                 ReorderThreshold = x.ReorderThreshold,
-                IsLowStock = x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value,
+                IsLowStock = x.Quantity > 0 && x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold),
                 IsActive = x.IsActive,
                 ProductCategory = x.ProductCategory.Name,
                 CostPrice = x.CostPrice
@@ -382,7 +383,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
             Sku = product.Sku,
             Quantity = product.Quantity,
             ReorderThreshold = product.ReorderThreshold,
-            IsLowStock = product.ReorderThreshold.HasValue && product.Quantity <= product.ReorderThreshold.Value,
+            IsLowStock = product.Quantity > 0 && product.Quantity <= (product.ReorderThreshold ?? DefaultLowStockThreshold),
             IsActive = product.IsActive,
             ProductCategory = product.ProductCategory.Name,
             CostPrice = product.CostPrice
@@ -448,7 +449,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
 
         // Count low stock items
         var lowStockCount = products
-            .Count(p => p.ReorderThreshold.HasValue && p.Quantity <= p.ReorderThreshold.Value);
+            .Count(p => p.Quantity > 0 && p.Quantity <= (p.ReorderThreshold ?? DefaultLowStockThreshold));
 
         // Count out of stock items
         var outOfStockCount = products
@@ -457,7 +458,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
         // Calculate total stock value
         var totalStockValue = products.Sum(p =>
         {
-            if (decimal.TryParse(p.CostPrice, out var cost))
+            if (decimal.TryParse(p.Price, out var cost))
             {
                 return cost * p.Quantity;
             }
