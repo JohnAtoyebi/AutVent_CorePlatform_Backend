@@ -8,4 +8,5 @@ public interface IInventoryService
     Task<ApiResponse<InventorySummaryResponse>> GetSummaryAsync(InventorySummaryFilterRequest request, long userId, long storeId, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResponse<InventoryItemResponse>>> GetItemsAsync(PagedQueryRequest request, long userId, long storeId, CancellationToken cancellationToken = default);
     Task<ApiResponse<InventoryItemResponse>> UpdateStockAsync(long productId, UpdateInventoryStockRequest request, long userId, long storeId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<BusinessInventorySummaryResponse>> GetBusinessInventorySummaryAsync(long userId, CancellationToken cancellationToken = default);
 }

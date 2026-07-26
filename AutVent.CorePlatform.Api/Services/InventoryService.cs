@@ -410,4 +410,75 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
 
         return Math.Round(((decimal)(currentValue - previousValue) / previousValue) * 100, 2);
     }
+
+    public async Task<ApiResponse<BusinessInventorySummaryResponse>> GetBusinessInventorySummaryAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        // Get the user's business
+        var business = await unitOfWork.Query<Business>()
+            .Include(b => b.Stores)
+            .FirstOrDefaultAsync(b => b.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<BusinessInventorySummaryResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this user", nameof(userId))]);
+        }
+
+        var businessStoreIds = business.Stores.Select(s => s.Id).ToList();
+
+        if (businessStoreIds.Count == 0)
+        {
+            return ApiResponse<BusinessInventorySummaryResponse>.Ok(new BusinessInventorySummaryResponse
+            {
+                BusinessId = business.Id,
+                LowStockCount = 0,
+                OutOfStockCount = 0,
+                TotalStockValue = 0,
+                StockLocationCount = 0
+            });
+        }
+
+        // Get all products across all stores
+        var products = await unitOfWork.Query<Product>()
+            .Include(p => p.Store)
+            .Where(p => businessStoreIds.Contains(p.StoreId) && !p.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        // Count low stock items
+        var lowStockCount = products
+            .Count(p => p.ReorderThreshold.HasValue && p.Quantity <= p.ReorderThreshold.Value);
+
+        // Count out of stock items
+        var outOfStockCount = products
+            .Count(p => p.Quantity == 0);
+
+        // Calculate total stock value
+        var totalStockValue = products.Sum(p =>
+        {
+            if (decimal.TryParse(p.CostPrice, out var cost))
+            {
+                return cost * p.Quantity;
+            }
+            return 0;
+        });
+
+        // Count stock locations (stores with inventory)
+        var stockLocationCount = products
+            .Select(p => p.Store.Id)
+            .Distinct()
+            .Count();
+
+        var summary = new BusinessInventorySummaryResponse
+        {
+            BusinessId = business.Id,
+            LowStockCount = lowStockCount,
+            OutOfStockCount = outOfStockCount,
+            TotalStockValue = totalStockValue,
+            StockLocationCount = stockLocationCount
+        };
+
+        return ApiResponse<BusinessInventorySummaryResponse>.Ok(summary);
+    }
 }
