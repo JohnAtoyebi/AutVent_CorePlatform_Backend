@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IStaffService
+public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IStaffService
 {
     private const string SystemActor = "system";
 
@@ -116,7 +116,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -136,8 +136,13 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
             .Include(x => x.Business)
             .Include(x => x.Role)
             .Include(x => x.StoreAccess).ThenInclude(x => x.Store)
-            .Where(x => x.Business.UserId == userId && !x.IsDeleted)
+            .Where(x => !x.IsDeleted)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -180,7 +185,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -318,7 +323,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -374,7 +379,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -418,7 +423,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId))
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status404NotFound,

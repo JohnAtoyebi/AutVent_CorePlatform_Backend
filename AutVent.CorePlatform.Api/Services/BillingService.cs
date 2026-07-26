@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BillingService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, INotificationService notificationService) : IBillingService
+public sealed class BillingService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, INotificationService notificationService, IAccessContext accessContext) : IBillingService
 {
     public async Task<ApiResponse<BillingTransactionResponse>> CreateAsync(
         long userId,
@@ -256,7 +256,7 @@ public sealed class BillingService(IUnitOfWork unitOfWork, IAuditLogService audi
                 StatusCodes.Status404NotFound,
                 "Business not found.");
 
-        if (business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && business.UserId != userId)
             return ApiResponse<PagedResponse<BusinessSubscriptionResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
                 "You do not have access to this business subscriptions.");
@@ -311,7 +311,7 @@ public sealed class BillingService(IUnitOfWork unitOfWork, IAuditLogService audi
                 StatusCodes.Status404NotFound,
                 "Business not found.");
 
-        if (business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && business.UserId != userId)
             return ApiResponse<BusinessSubscriptionResponse>.Failed(
                 StatusCodes.Status403Forbidden,
                 "You do not have access to this business subscriptions.");

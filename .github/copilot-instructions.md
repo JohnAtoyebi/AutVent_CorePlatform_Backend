@@ -11,3 +11,6 @@
 
 ## Subscription Management
 - Create an active business subscription when required, rather than just fetching subscriptions by business ID.
+
+## Admin Portal Behavior
+- For admin portal behavior, admin endpoints should act as intermediaries for app users; operations like creating a business must target a selected app user rather than the admin account itself.

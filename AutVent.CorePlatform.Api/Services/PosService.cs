@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class PosService(IUnitOfWork unitOfWork, INotificationService notificationService) : IPosService
+public sealed class PosService(IUnitOfWork unitOfWork, INotificationService notificationService, IAccessContext accessContext) : IPosService
 {
     private const string SystemActor = "system";
 
@@ -62,7 +62,7 @@ public sealed class PosService(IUnitOfWork unitOfWork, INotificationService noti
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<SaleResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -323,7 +323,7 @@ public sealed class PosService(IUnitOfWork unitOfWork, INotificationService noti
                 [new ApiError("SaleNotFound", "No sale found for this id", nameof(id))]);
         }
 
-        if (sale.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && sale.Store.Business.UserId != userId)
         {
             return ApiResponse<SaleResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -341,7 +341,7 @@ public sealed class PosService(IUnitOfWork unitOfWork, INotificationService noti
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
 
-        if (store is null || store.Business.UserId != userId)
+        if (store is null || (!accessContext.IsPlatformAdmin && store.Business.UserId != userId))
         {
             return ApiResponse<PagedResponse<SaleResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -368,8 +368,12 @@ public sealed class PosService(IUnitOfWork unitOfWork, INotificationService noti
             .Include(x => x.Customer)
             .Include(x => x.SaleItems)
             .ThenInclude(x => x.Product)
-            .Where(x => x.Store.Business.UserId == userId)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Store.Business.UserId == userId);
+        }
 
         if (storeId.HasValue)
         {

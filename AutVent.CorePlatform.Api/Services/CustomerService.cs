@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
+public sealed class CustomerService(IUnitOfWork unitOfWork, IAccessContext accessContext) : ICustomerService
 {
     private const string SystemActor = "system";
 
@@ -25,7 +25,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<CustomerResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -97,7 +97,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("CustomerNotFound", "No customer found for this id", nameof(id))]);
         }
 
-        if (customer.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && customer.Store.Business.UserId != userId)
         {
             return ApiResponse<CustomerResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -116,8 +116,12 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
         var query = unitOfWork.Query<Customer>()
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
-            .Where(x => x.Store.Business.UserId == userId)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Store.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -177,7 +181,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("CustomerNotFound", "No customer found for this id", nameof(id))]);
         }
 
-        if (customer.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && customer.Store.Business.UserId != userId)
         {
             return ApiResponse<CustomerResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -246,7 +250,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("CustomerNotFound", "No customer found for this id", nameof(id))]);
         }
 
-        if (customer.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && customer.Store.Business.UserId != userId)
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status403Forbidden,
