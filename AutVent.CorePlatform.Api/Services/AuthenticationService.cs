@@ -33,6 +33,7 @@ public sealed class AuthenticationService(
         var hashedPassword = PasswordHasher.Hash(request.Password);
 
         var user = await unitOfWork.Query<User>()
+            .Include(x => x.Role)
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
         if (user is null || !string.Equals(user.Password, hashedPassword, StringComparison.Ordinal))
@@ -238,6 +239,7 @@ public sealed class AuthenticationService(
 
         var storedToken = await unitOfWork.Query<RefreshToken>()
             .Include(x => x.User)
+                .ThenInclude(x => x.Role)
             .FirstOrDefaultAsync(x => x.Token == request.RefreshToken, cancellationToken);
 
         if (storedToken is null)

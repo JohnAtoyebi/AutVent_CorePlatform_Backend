@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BankAccountService(IUnitOfWork unitOfWork) : IBankAccountService
+public sealed class BankAccountService(IUnitOfWork unitOfWork, IAccessContext accessContext) : IBankAccountService
 {
     private const string SystemActor = "system";
 
@@ -147,7 +147,7 @@ public sealed class BankAccountService(IUnitOfWork unitOfWork) : IBankAccountSer
             return (null, ApiResponse<T>.Failed(StatusCodes.Status404NotFound, "Bank account not found",
                 [new ApiError("NotFound", "Bank account not found", nameof(id))]));
 
-        if (account.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && account.Business.UserId != userId)
             return (null, ApiResponse<T>.Failed(StatusCodes.Status403Forbidden, "Access denied",
                 [new ApiError("Forbidden", "This bank account does not belong to your business", nameof(id))]));
 

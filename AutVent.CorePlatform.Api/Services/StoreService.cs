@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IStoreService
+public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IStoreService
 {
     private const string SystemActor = "system";
 
@@ -29,7 +29,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
                 [new ApiError("BusinessNotFound", "No business found for this id", nameof(request.BusinessId))]);
         }
 
-        if (business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && business.UserId != userId)
         {
             return ApiResponse<CreateStoreResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -105,7 +105,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(id))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<CreateStoreResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -125,8 +125,13 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
         var query = unitOfWork.Query<Store>()
             .Include(x => x.Business)
             .Include(x => x.StoreCategory)
-            .Where(x => x.Business.UserId == userId && !x.IsDeleted)
+            .Where(x => !x.IsDeleted)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -236,7 +241,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
             return ApiResponse<CreateStoreResponse>.Failed(StatusCodes.Status404NotFound, "Store not found",
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(id))]);
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
             return ApiResponse<CreateStoreResponse>.Failed(StatusCodes.Status403Forbidden, "You do not have access to this store",
                 [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(id))]);
 
@@ -296,7 +301,7 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
             return ApiResponse<bool>.Failed(StatusCodes.Status404NotFound, "Store not found",
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(id))]);
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
             return ApiResponse<bool>.Failed(StatusCodes.Status403Forbidden, "You do not have access to this store",
                 [new ApiError("UnauthorizedStore", "This store does not belong to your business", nameof(id))]);
 

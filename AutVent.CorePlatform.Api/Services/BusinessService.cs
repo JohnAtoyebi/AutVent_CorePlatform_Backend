@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IAuditLogService auditLogService, INotificationService notificationService) : IBusinessService
+public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IAuditLogService auditLogService, INotificationService notificationService, IAccessContext accessContext) : IBusinessService
 {
     private const string SystemActor = "system";
 
@@ -193,7 +193,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 [new ApiError("BusinessNotFound", "No business found for this id", nameof(id))]);
         }
 
-        if (business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && business.UserId != userId)
         {
             return ApiResponse<CreateBusinessResponse>.Failed(
                 StatusCodes.Status403Forbidden,

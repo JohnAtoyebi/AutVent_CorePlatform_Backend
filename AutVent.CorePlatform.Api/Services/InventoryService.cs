@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService auditLogService) : IInventoryService
+public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IInventoryService
 {
     private const string SystemActor = "system";
 
@@ -25,7 +25,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<InventorySummaryResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -138,7 +138,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<PagedResponse<InventoryItemResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -175,8 +175,15 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
 
                 if (parsedIds.Count > 0)
                 {
-                    var authorizedStoreIds = await unitOfWork.Query<Store>()
-                        .Where(x => parsedIds.Contains(x.Id) && x.Business.UserId == userId)
+                    var authorizedStoresQuery = unitOfWork.Query<Store>()
+                        .Where(x => parsedIds.Contains(x.Id));
+
+                    if (!accessContext.IsPlatformAdmin)
+                    {
+                        authorizedStoresQuery = authorizedStoresQuery.Where(x => x.Business.UserId == userId);
+                    }
+
+                    var authorizedStoreIds = await authorizedStoresQuery
                         .Select(x => x.Id)
                         .ToListAsync(cancellationToken);
 
@@ -290,7 +297,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                 [new ApiError("ProductNotFound", "No product found for this id in the selected store", nameof(productId))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<InventoryItemResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -303,7 +310,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == request.LocationStoreId, cancellationToken);
 
-        if (locationStore is null || locationStore.Business.UserId != userId)
+        if (locationStore is null || (!accessContext.IsPlatformAdmin && locationStore.Business.UserId != userId))
         {
             return ApiResponse<InventoryItemResponse>.Failed(
                 StatusCodes.Status403Forbidden,

@@ -13,6 +13,8 @@ public static class DependencyInjection
         services.Configure<EmailOptions>(configuration.GetSection("Email"));
         services.Configure<AppOptions>(configuration.GetSection("App"));
         services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAccessContext, AccessContext>();
         services.AddScoped<IImageService, CloudinaryImageService>();
         services.AddHttpClient(nameof(ResendEmailProvider));
         services.AddTransient<ResendEmailProvider>();

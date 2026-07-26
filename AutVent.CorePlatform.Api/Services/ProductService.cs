@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService, IAuditLogService auditLogService) : IProductService
+public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService, IAuditLogService auditLogService, IAccessContext accessContext) : IProductService
 {
     private const string SystemActor = "system";
 
@@ -36,7 +36,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status409Conflict,
@@ -357,7 +357,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<ProductImportResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -538,7 +538,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<ProductResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -558,8 +558,13 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .Where(x => x.Store.Business.UserId == userId && !x.IsDeleted)
+            .Where(x => !x.IsDeleted)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Store.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -573,9 +578,16 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         {
             if (request.Filters.TryGetValue("storeId", out var storeIdFilter) && long.TryParse(storeIdFilter, out var filterStoreId))
             {
-                var storeExists = await unitOfWork.Query<Store>()
+                var storeExistsQuery = unitOfWork.Query<Store>()
                     .Include(x => x.Business)
-                    .AnyAsync(x => x.Id == filterStoreId && x.Business.UserId == userId, cancellationToken);
+                    .Where(x => x.Id == filterStoreId);
+
+                if (!accessContext.IsPlatformAdmin)
+                {
+                    storeExistsQuery = storeExistsQuery.Where(x => x.Business.UserId == userId);
+                }
+
+                var storeExists = await storeExistsQuery.AnyAsync(cancellationToken);
 
                 if (!storeExists)
                 {
@@ -764,7 +776,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
 
-        if (store is null || store.Business.UserId != userId)
+        if (store is null || (!accessContext.IsPlatformAdmin && store.Business.UserId != userId))
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -916,7 +928,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1132,7 +1144,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1181,7 +1193,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1223,7 +1235,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<ProductResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1271,7 +1283,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<ProductResponse>.Failed(
                 StatusCodes.Status403Forbidden,

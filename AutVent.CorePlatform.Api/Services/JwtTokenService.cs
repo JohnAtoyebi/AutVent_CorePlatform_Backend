@@ -32,6 +32,11 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
+        if (!string.IsNullOrWhiteSpace(user.Role?.Name))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, user.Role.Name));
+        }
+
         var token = new JwtSecurityToken(
             issuer: jwt.Issuer,
             audience: jwt.Audience,
