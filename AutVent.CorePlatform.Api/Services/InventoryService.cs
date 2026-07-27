@@ -330,15 +330,15 @@ public sealed class InventoryService(
         {
             if (request.PurchaseCostPerUnit.HasValue)
             {
-                var newCost = request.PurchaseCostPerUnit.Value;
-                var existingCost = decimal.TryParse(product.CostPrice, out var parsed) ? parsed : newCost;
+                var incomingPrice = request.PurchaseCostPerUnit.Value;
                 var existingQty = product.Quantity;
+                var hasExistingPrice = decimal.TryParse(product.Price, out var existingPricePerUnit);
 
-                var weightedAverage = existingQty > 0
-                    ? (existingQty * existingCost + request.Quantity * newCost) / (existingQty + request.Quantity)
-                    : newCost;
+                var weightedAveragePrice = existingQty > 0 && hasExistingPrice
+                    ? ((existingQty * existingPricePerUnit) + (request.Quantity * incomingPrice)) / (existingQty + request.Quantity)
+                    : incomingPrice;
 
-                product.Price = Math.Round(weightedAverage, 2).ToString("F2");
+                product.Price = Math.Round(weightedAveragePrice, 2).ToString("F2");
             }
 
             product.Quantity += request.Quantity;
