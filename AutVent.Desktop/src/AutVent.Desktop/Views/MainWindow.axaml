@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:vm="using:AutVent.Desktop.ViewModels"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		mc:Ignorable="d"
+		d:DesignWidth="1360" d:DesignHeight="860"
+		x:Class="AutVent.Desktop.Views.MainWindow"
+		x:DataType="vm:MainViewModel"
+		Icon="/Assets/avalonia-logo.ico"
+		Background="#F8FAFC"
+		Title="AutVent Desktop"
+		MinWidth="1100" MinHeight="680">
+
+  <Grid ColumnDefinitions="Auto,*">
+
+	<!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+	<Border Grid.Column="0"
+			Width="{Binding SidebarWidth}"
+			Background="#0F172A">
+	  <DockPanel>
+
+		<!-- Brand Header -->
+		<Border DockPanel.Dock="Top" Padding="16,20,16,4">
+		  <Grid ColumnDefinitions="36,*,Auto">
+
+			<!-- AutVent Logo Mark (36x36) -->
+			<Border Width="36" Height="36" CornerRadius="10" Background="#2563EB"
+					HorizontalAlignment="Left" VerticalAlignment="Center">
+			  <Viewbox Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+				<Canvas Width="100" Height="100">
+				  <Path Fill="White" Data="M 20,82 L 40,82 L 60,16 L 48,16 Z"/>
+				  <Path Fill="White" Data="M 51,44 L 64,44 L 80,82 L 56,82 Z"/>
+				</Canvas>
+			  </Viewbox>
+			</Border>
+
+			<StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"
+						IsVisible="{Binding !IsSidebarCollapsed}">
+			  <TextBlock Text="AutVent" Foreground="White" FontSize="17" FontWeight="Bold"/>
+			  <TextBlock Text="Business OS" Foreground="#475569" FontSize="11"/>
+			</StackPanel>
+
+			<Button Grid.Column="2"
+					Command="{Binding ToggleSidebarCommand}"
+					Width="28" Height="28"
+					Background="Transparent"
+					Foreground="#475569"
+					CornerRadius="6"
+					Padding="0"
+					HorizontalContentAlignment="Center"
+					VerticalContentAlignment="Center"
+					FontSize="13"
+					Content="&#x21C6;"/>
+		  </Grid>
+		</Border>
+
+		<!-- Separator -->
+		<Border DockPanel.Dock="Top" Height="1" Background="#1E293B" Margin="0,16,0,12"/>
+
+		<!-- Section Label -->
+		<TextBlock DockPanel.Dock="Top"
+				   Text="MODULES"
+				   Foreground="#334155"
+				   FontSize="10"
+				   FontWeight="SemiBold"
+				   Margin="20,0,0,8"
+				   IsVisible="{Binding !IsSidebarCollapsed}"/>
+
+		<!-- Nav Items -->
+		<StackPanel DockPanel.Dock="Top" Spacing="2" Margin="10,0">
+
+		  <Button Command="{Binding NavigateCommand}" CommandParameter="auth"
+				  HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+				  Background="Transparent" Foreground="Transparent"
+				  CornerRadius="10" Padding="8,8">
+			<Grid ColumnDefinitions="30,*">
+			  <Border Width="30" Height="30" Background="#1E293B" CornerRadius="8">
+				<TextBlock Text="&#x1F511;" FontSize="13"
+						   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			  </Border>
+			  <TextBlock Grid.Column="1" Text="Authentication"
+						 Foreground="#CBD5E1" FontSize="13" FontWeight="Medium"
+						 Margin="10,0,0,0" VerticalAlignment="Center"
+						 IsVisible="{Binding !IsSidebarCollapsed}"/>
+			</Grid>
+		  </Button>
+
+		  <Button Command="{Binding NavigateCommand}" CommandParameter="inventory"
+				  HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+				  Background="Transparent" Foreground="Transparent"
+				  CornerRadius="10" Padding="8,8">
+			<Grid ColumnDefinitions="30,*">
+			  <Border Width="30" Height="30" Background="#1E293B" CornerRadius="8">
+				<TextBlock Text="&#x1F4E6;" FontSize="13"
+						   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			  </Border>
+			  <TextBlock Grid.Column="1" Text="Inventory"
+						 Foreground="#CBD5E1" FontSize="13" FontWeight="Medium"
+						 Margin="10,0,0,0" VerticalAlignment="Center"
+						 IsVisible="{Binding !IsSidebarCollapsed}"/>
+			</Grid>
+		  </Button>
+
+		  <Button Command="{Binding NavigateCommand}" CommandParameter="pos"
+				  HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+				  Background="Transparent" Foreground="Transparent"
+				  CornerRadius="10" Padding="8,8">
+			<Grid ColumnDefinitions="30,*">
+			  <Border Width="30" Height="30" Background="#1E293B" CornerRadius="8">
+				<TextBlock Text="&#x1F6D2;" FontSize="13"
+						   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			  </Border>
+			  <TextBlock Grid.Column="1" Text="Point of Sale"
+						 Foreground="#CBD5E1" FontSize="13" FontWeight="Medium"
+						 Margin="10,0,0,0" VerticalAlignment="Center"
+						 IsVisible="{Binding !IsSidebarCollapsed}"/>
+			</Grid>
+		  </Button>
+
+		</StackPanel>
+
+		<!-- Bottom User Strip -->
+		<Border DockPanel.Dock="Bottom" Padding="12,12" Background="#0A1628">
+		  <Grid ColumnDefinitions="32,*">
+			<Border Width="32" Height="32" CornerRadius="16" Background="#2563EB">
+			  <TextBlock Text="U" Foreground="White" FontWeight="Bold"
+						 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			</Border>
+			<StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+						IsVisible="{Binding !IsSidebarCollapsed}">
+			  <TextBlock Text="Cashier" Foreground="White" FontSize="13" FontWeight="Medium"/>
+			  <TextBlock Text="AutVent Desktop" Foreground="#475569" FontSize="11"/>
+			</StackPanel>
+		  </Grid>
+		</Border>
+
+	  </DockPanel>
+	</Border>
+
+	<!-- ═══════════════════════ MAIN AREA ═══════════════════════ -->
+	<Grid Grid.Column="1" RowDefinitions="56,*">
+
+	  <!-- Top Bar -->
+	  <Border Grid.Row="0"
+			  Background="White"
+			  BorderBrush="#E2E8F0"
+			  BorderThickness="0,0,0,1"
+			  Padding="28,0">
+		<Grid ColumnDefinitions="*,Auto">
+		  <TextBlock Text="{Binding CurrentModuleTitle}"
+					 FontSize="18" FontWeight="SemiBold"
+					 Foreground="#0F172A"
+					 VerticalAlignment="Center"/>
+		</Grid>
+	  </Border>
+
+	  <!-- Module View -->
+	  <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}"/>
+
+	</Grid>
+
+  </Grid>
+</Window>

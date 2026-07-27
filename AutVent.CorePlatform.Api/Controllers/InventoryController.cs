@@ -13,6 +13,15 @@ namespace AutVent.CorePlatform.Api.Controllers;
 [Authorize]
 public class InventoryController(IInventoryService inventoryService) : ApiControllerBase
 {
+    [HttpGet("business/summary")]
+    [ProducesResponseType(typeof(ApiResponse<BusinessInventorySummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BusinessInventorySummaryResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBusinessSummary(CancellationToken cancellationToken)
+    {
+        var response = await inventoryService.GetBusinessInventorySummaryAsync(CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("store/{storeId:long}/summary")]
     [ProducesResponseType(typeof(ApiResponse<InventorySummaryResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<InventorySummaryResponse>), StatusCodes.Status403Forbidden)]

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransferService
+public sealed class StockTransferService(IUnitOfWork unitOfWork, IAccessContext accessContext) : IStockTransferService
 {
     private const string SystemActor = "system";
 
@@ -30,7 +30,7 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
         var sourceStore = stores.FirstOrDefault(x => x.Id == request.SourceStoreId);
         var destinationStore = stores.FirstOrDefault(x => x.Id == request.DestinationStoreId);
 
-        if (sourceStore is null || sourceStore.Business.UserId != userId)
+        if (sourceStore is null || (!accessContext.IsPlatformAdmin && sourceStore.Business.UserId != userId))
         {
             return ApiResponse<StockTransferResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -38,7 +38,7 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
                 [new ApiError("UnauthorizedStore", "Source store does not belong to your business", nameof(request.SourceStoreId))]);
         }
 
-        if (destinationStore is null || destinationStore.Business.UserId != userId)
+        if (destinationStore is null || (!accessContext.IsPlatformAdmin && destinationStore.Business.UserId != userId))
         {
             return ApiResponse<StockTransferResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -140,11 +140,13 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
             sourceProduct.DateUpdated = now;
             sourceProduct.UpdatedBy = SystemActor;
             unitOfWork.Update(sourceProduct);
+            await unitOfWork.SaveChangesAsync();
 
             destinationProduct.Quantity += item.Quantity;
             destinationProduct.DateUpdated = now;
             destinationProduct.UpdatedBy = SystemActor;
             unitOfWork.Update(destinationProduct);
+            await unitOfWork.SaveChangesAsync();
 
             transferItems.Add(new StockTransferItem
             {
@@ -202,7 +204,7 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
                 [new ApiError("TransferNotFound", "No stock transfer found for this id", nameof(id))]);
         }
 
-        if (transfer.SourceStore.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && transfer.SourceStore.Business.UserId != userId)
         {
             return ApiResponse<StockTransferResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -223,8 +225,12 @@ public sealed class StockTransferService(IUnitOfWork unitOfWork) : IStockTransfe
             .Include(x => x.DestinationStore)
             .Include(x => x.Items).ThenInclude(x => x.SourceProduct)
             .Include(x => x.Items).ThenInclude(x => x.DestinationProduct)
-            .Where(x => x.SourceStore.Business.UserId == userId)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.SourceStore.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {

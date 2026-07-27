@@ -7,3 +7,10 @@
 - Use enum types for payment and discount fields (e.g., PaymentMethod and DiscountType) instead of strings in this codebase.
 - Use `Id` for ordering (`OrderBy`/`OrderByDescending`) instead of name/date fields in this codebase.
 - Prefer SKU/text identifiers to be uppercase alphanumeric (capital letters and numbers).
+- Ignore appsettings files unless the user explicitly asks to modify them.
+
+## Subscription Management
+- Create an active business subscription when required, rather than just fetching subscriptions by business ID.
+
+## Admin Portal Behavior
+- For admin portal behavior, admin endpoints should act as intermediaries for app users; operations like creating a business must target a selected app user rather than the admin account itself.

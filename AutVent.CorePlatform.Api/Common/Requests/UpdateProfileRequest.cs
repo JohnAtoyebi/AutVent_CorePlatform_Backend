@@ -12,4 +12,7 @@ public sealed class UpdateProfileRequest
     [Phone]
     [MaxLength(20)]
     public string PhoneNumber { get; init; } = string.Empty;
+
+    [MaxLength(1000)]
+    public string? ProfilePhotoUrl { get; init; }
 }

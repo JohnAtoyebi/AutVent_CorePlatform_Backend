@@ -23,4 +23,16 @@ public sealed class CreateStoreRequest
     [Phone]
     [MaxLength(20)]
     public string PhoneNumber { get; init; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Address { get; init; }
+
+    [MaxLength(100)]
+    public string? City { get; init; }
+
+    [MaxLength(100)]
+    public string? State { get; init; }
+
+    [MaxLength(100)]
+    public string? Country { get; init; }
 }

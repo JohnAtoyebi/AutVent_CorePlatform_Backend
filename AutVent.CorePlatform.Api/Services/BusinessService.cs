@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions) : IBusinessService
+public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider emailProvider, IOptions<EmailOptions> emailOptions, IAuditLogService auditLogService, INotificationService notificationService, IAccessContext accessContext) : IBusinessService
 {
     private const string SystemActor = "system";
 
@@ -74,6 +74,14 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         var business = new Business
         {
             BusinessName = businessName,
+            LogoUrl = request.LogoUrl?.Trim(),
+            Email = request.Email?.Trim().ToLowerInvariant(),
+            PhoneNumber = request.PhoneNumber?.Trim(),
+            Website = request.Website?.Trim(),
+            Address = request.Address?.Trim(),
+            City = request.City?.Trim(),
+            State = request.State?.Trim(),
+            Country = request.Country?.Trim(),
             StaffRangeId = staffRange.Id,
             UserId = user.Id,
             BusinessIndustry = industry,
@@ -103,8 +111,32 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
             DateCreated = now
         };
         await unitOfWork.CreateAsync(subscription, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await ProductCategoryService.MapDefaultsToBusinessAsync(unitOfWork, business.Id, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.BusinessCreated,
+            nameof(Business),
+            $"Business '{businessName}' created.",
+            businessId: business.Id,
+            entityId: business.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = userId,
+                BusinessId = business.Id,
+                Type = NotificationType.General,
+                Title = "Business Created",
+                Message = $"Business '{business.BusinessName}' was created successfully.",
+                ActionUrl = "/business"
+            },
+            cancellationToken);
 
         var response = MapToResponse(business, industry.Name, staffRange.Name);
         return ApiResponse<CreateBusinessResponse>.Created(response, "Business created successfully");
@@ -144,6 +176,106 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         }
 
         return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name));
+    }
+
+    public async Task<ApiResponse<CreateBusinessResponse>> UpdateAsync(long id, UpdateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
+    {
+        var business = await unitOfWork.Query<Business>()
+            .Include(x => x.BusinessIndustry)
+            .Include(x => x.StaffRange)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this id", nameof(id))]);
+        }
+
+        if (!accessContext.IsPlatformAdmin && business.UserId != userId)
+        {
+            return ApiResponse<CreateBusinessResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this business",
+                [new ApiError("UnauthorizedBusiness", "This business does not belong to your account", nameof(id))]);
+        }
+
+        if (request.Name is not null)
+            business.BusinessName = request.Name.Trim();
+
+        if (request.IndustryId.HasValue)
+        {
+            var industry = await unitOfWork.Query<BusinessIndustry>()
+                .FirstOrDefaultAsync(x => x.Id == request.IndustryId.Value, cancellationToken);
+
+            if (industry is null)
+            {
+                return ApiResponse<CreateBusinessResponse>.Failed(
+                    StatusCodes.Status400BadRequest,
+                    "Industry not found",
+                    [new ApiError("InvalidIndustry", "Industry not found", nameof(request.IndustryId))]);
+            }
+
+            business.BusinessIndustryId = industry.Id;
+            business.BusinessIndustry = industry;
+        }
+
+        if (request.StaffRangeId.HasValue)
+        {
+            var staffRange = await unitOfWork.Query<StaffRange>()
+                .FirstOrDefaultAsync(x => x.Id == request.StaffRangeId.Value, cancellationToken);
+
+            if (staffRange is null)
+            {
+                return ApiResponse<CreateBusinessResponse>.Failed(
+                    StatusCodes.Status400BadRequest,
+                    "Staff range not found",
+                    [new ApiError("InvalidStaffRange", "Staff range not found", nameof(request.StaffRangeId))]);
+            }
+
+            business.StaffRangeId = staffRange.Id;
+            business.StaffRange = staffRange;
+        }
+
+        if (request.LogoUrl is not null) business.LogoUrl = request.LogoUrl.Trim();
+        if (request.Email is not null) business.Email = request.Email.Trim().ToLowerInvariant();
+        if (request.PhoneNumber is not null) business.PhoneNumber = request.PhoneNumber.Trim();
+        if (request.Website is not null) business.Website = request.Website.Trim();
+        if (request.Address is not null) business.Address = request.Address.Trim();
+        if (request.City is not null) business.City = request.City.Trim();
+        if (request.State is not null) business.State = request.State.Trim();
+        if (request.Country is not null) business.Country = request.Country.Trim();
+
+        business.UpdatedBy = SystemActor;
+        business.DateUpdated = DateTime.UtcNow;
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.BusinessUpdated,
+            nameof(Business),
+            $"Business '{business.BusinessName}' updated.",
+            businessId: business.Id,
+            entityId: business.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = userId,
+                BusinessId = business.Id,
+                Type = NotificationType.General,
+                Title = "Business Updated",
+                Message = $"Business '{business.BusinessName}' details were updated.",
+                ActionUrl = "/business"
+            },
+            cancellationToken);
+
+        return ApiResponse<CreateBusinessResponse>.Ok(
+            MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name),
+            "Business updated successfully");
     }
 
     public async Task<ApiResponse<PagedResponse<CreateBusinessResponse>>> GetAllAsync(PagedQueryRequest request, CancellationToken cancellationToken = default)
@@ -200,7 +332,15 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 BusinessId = x.Id,
                 Name = x.BusinessName,
                 Industry = x.BusinessIndustry.Name,
-                StaffRange = x.StaffRange.Name
+                StaffRange = x.StaffRange.Name,
+                LogoUrl = x.LogoUrl,
+                Email = x.Email,
+                PhoneNumber = x.PhoneNumber,
+                Website = x.Website,
+                Address = x.Address,
+                City = x.City,
+                State = x.State,
+                Country = x.Country
             })
             .ToListAsync(cancellationToken);
 
@@ -221,6 +361,14 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         BusinessId = business.Id,
         Name = business.BusinessName,
         Industry = industry,
-        StaffRange = staffRange
+        StaffRange = staffRange,
+        LogoUrl = business.LogoUrl,
+        Email = business.Email,
+        PhoneNumber = business.PhoneNumber,
+        Website = business.Website,
+        Address = business.Address,
+        City = business.City,
+        State = business.State,
+        Country = business.Country
     };
 }

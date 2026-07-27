@@ -14,7 +14,8 @@ public class InvoiceController(IInvoiceService invoiceService) : ApiControllerBa
     [ProducesResponseType(typeof(ApiResponse<InvoiceResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<InvoiceResponse>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<InvoiceResponse>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Create(long storeId, [FromBody] CreateInvoiceRequest request, CancellationToken cancellationToken)
+    [Consumes("multipart/form-data", "application/json")]
+    public async Task<IActionResult> Create(long storeId, [FromForm] CreateInvoiceRequest request, CancellationToken cancellationToken)
     {
         var response = await invoiceService.CreateAsync(storeId, CurrentUserId, request, cancellationToken);
         return StatusCode(response.StatusCode, response);
@@ -51,9 +52,10 @@ public class InvoiceController(IInvoiceService invoiceService) : ApiControllerBa
     [ProducesResponseType(typeof(ApiResponse<InvoiceResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<InvoiceResponse>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<InvoiceResponse>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> MarkAsSent(long storeId, long invoiceId, CancellationToken cancellationToken)
+    [Consumes("multipart/form-data", "application/json")]
+    public async Task<IActionResult> MarkAsSent(long storeId, long invoiceId, [FromForm] MarkInvoiceAsSentRequest request, CancellationToken cancellationToken)
     {
-        var response = await invoiceService.MarkAsSentAsync(storeId, invoiceId, cancellationToken);
+        var response = await invoiceService.MarkAsSentAsync(storeId, invoiceId, request, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 

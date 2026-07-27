@@ -1,12 +1,17 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
+public sealed class StaffService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IStaffService
 {
     private const string SystemActor = "system";
 
@@ -115,7 +120,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -135,8 +140,13 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
             .Include(x => x.Business)
             .Include(x => x.Role)
             .Include(x => x.StoreAccess).ThenInclude(x => x.Store)
-            .Where(x => x.Business.UserId == userId && !x.IsDeleted)
+            .Where(x => !x.IsDeleted)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -179,7 +189,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -309,6 +319,25 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserProfileUpdated,
+            nameof(Staff),
+            $"Staff member '{staff.FullName}' updated.",
+            businessId: staff.BusinessId,
+            entityId: staff.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = staff.BusinessId,
+            Type = NotificationType.General,
+            Title = "Staff Updated",
+            Message = $"{staff.FullName} was updated successfully.",
+            ActionUrl = "/staff"
+        }, cancellationToken);
+
         var updated = await LoadStaffWithIncludes(staff.Id, cancellationToken);
         return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!), "Staff member updated successfully");
     }
@@ -317,7 +346,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -373,7 +402,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
     {
         var staff = await LoadStaffWithIncludes(id, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId || staff.IsDeleted)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId) || staff.IsDeleted)
         {
             return ApiResponse<StaffResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -394,6 +423,25 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            isActive ? AuditAction.UserProfileUpdated : AuditAction.StaffDeactivated,
+            nameof(Staff),
+            $"Staff member '{staff.FullName}' was {(isActive ? "activated" : "deactivated")}.",
+            businessId: staff.BusinessId,
+            entityId: staff.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = staff.BusinessId,
+            Type = NotificationType.General,
+            Title = "Staff Status Updated",
+            Message = $"{staff.FullName} is now {(isActive ? "active" : "inactive")}.",
+            ActionUrl = "/staff"
+        }, cancellationToken);
+
         var updated = await LoadStaffWithIncludes(staff.Id, cancellationToken);
         return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!),
             $"Staff member {(isActive ? "activated" : "deactivated")} successfully");
@@ -405,7 +453,7 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
-        if (staff is null || staff.Business.UserId != userId)
+        if (staff is null || (!accessContext.IsPlatformAdmin && staff.Business.UserId != userId))
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status404NotFound,
@@ -422,6 +470,25 @@ public sealed class StaffService(IUnitOfWork unitOfWork) : IStaffService
 
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StaffDeleted,
+            nameof(Staff),
+            $"Staff member '{staff.FullName}' was deleted.",
+            businessId: staff.BusinessId,
+            entityId: staff.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = staff.BusinessId,
+            Type = NotificationType.General,
+            Title = "Staff Deleted",
+            Message = $"{staff.FullName} was deleted.",
+            ActionUrl = "/staff"
+        }, cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Staff member deleted successfully");
     }

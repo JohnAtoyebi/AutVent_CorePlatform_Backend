@@ -21,6 +21,17 @@ var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("LocalhostPolicy", builder =>
+    {
+        builder
+            .WithOrigins("http://localhost:3000")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+});
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiServices(builder.Configuration);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -38,7 +49,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("PlatformAdminOnly", policy =>
+        policy.RequireRole("PlatformAdmin"));
+});
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -142,6 +157,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+app.UseCors("LocalhostPolicy");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

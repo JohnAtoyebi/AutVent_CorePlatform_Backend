@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
+      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutVent.Application\AutVent.Application.csproj" />
+    <ProjectReference Include="..\AutVent.Infrastructure\AutVent.Infrastructure.csproj" />
+    <ProjectReference Include="..\AutVent.Sync\AutVent.Sync.csproj" />
+    <ProjectReference Include="..\AutVent.Shared\AutVent.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Views\Controls\" />
+  </ItemGroup>
+</Project>

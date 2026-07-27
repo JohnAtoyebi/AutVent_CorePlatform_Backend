@@ -11,13 +11,14 @@ public sealed class RoleSeeder(IUnitOfWork unitOfWork)
     {
         var defaultRoles = new[]
         {
-            ("Owner",  "Full access to all business operations and settings"),
-            ("Admin",  "Manages store operations, staff, and configurations"),
-            ("Staff",  "Handles day-to-day store activities such as sales and inventory"),
-            ("Viewer", "Read-only access to store data and reports")
+            ("Owner", "Full access to all business operations and settings", true),
+            ("Admin", "Manages store operations, staff, and configurations", true),
+            ("Staff", "Handles day-to-day store activities such as sales and inventory", true),
+            ("Viewer", "Read-only access to store data and reports", true),
+            ("PlatformAdmin", "Platform-level administrator with cross-business visibility", false)
         };
 
-        foreach (var (name, description) in defaultRoles)
+        foreach (var (name, description, isDefault) in defaultRoles)
         {
             var exists = unitOfWork.Query<Role>()
                 .Any(x => x.Name.ToLower() == name.ToLower());
@@ -28,7 +29,7 @@ public sealed class RoleSeeder(IUnitOfWork unitOfWork)
                 {
                     Name = name,
                     Description = description,
-                    IsDefault = true,
+                    IsDefault = isDefault,
                     IsActive = true,
                     CreatedBy = SystemActor,
                     DateCreated = DateTime.UtcNow

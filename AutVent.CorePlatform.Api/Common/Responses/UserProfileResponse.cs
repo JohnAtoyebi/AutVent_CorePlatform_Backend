@@ -8,5 +8,6 @@ public sealed class UserProfileResponse
     public string PhoneNumber { get; init; } = string.Empty;
     public string? ReferralCode { get; init; }
     public bool IsActive { get; init; }
+    public string? ProfilePhotoUrl { get; init; }
     public DateTimeOffset MemberSince { get; init; }
 }

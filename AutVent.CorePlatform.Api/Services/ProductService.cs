@@ -9,7 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService) : IProductService
+public sealed class ProductService(
+    IUnitOfWork unitOfWork,
+    IImageService imageService,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IProductService
 {
     private const string SystemActor = "system";
 
@@ -36,7 +41,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status409Conflict,
@@ -357,7 +362,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<ProductImportResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -538,7 +543,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<ProductResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -558,8 +563,13 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
             .Include(x => x.ProductCategory)
-            .Where(x => x.Store.Business.UserId == userId && !x.IsDeleted)
+            .Where(x => !x.IsDeleted)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Store.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -573,9 +583,16 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         {
             if (request.Filters.TryGetValue("storeId", out var storeIdFilter) && long.TryParse(storeIdFilter, out var filterStoreId))
             {
-                var storeExists = await unitOfWork.Query<Store>()
+                var storeExistsQuery = unitOfWork.Query<Store>()
                     .Include(x => x.Business)
-                    .AnyAsync(x => x.Id == filterStoreId && x.Business.UserId == userId, cancellationToken);
+                    .Where(x => x.Id == filterStoreId);
+
+                if (!accessContext.IsPlatformAdmin)
+                {
+                    storeExistsQuery = storeExistsQuery.Where(x => x.Business.UserId == userId);
+                }
+
+                var storeExists = await storeExistsQuery.AnyAsync(cancellationToken);
 
                 if (!storeExists)
                 {
@@ -624,12 +641,12 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
 
         query = sortBy switch
         {
-            ProductSortBy.Oldest      => query.OrderBy(x => x.Id),
-            ProductSortBy.NameAsc     => query.OrderBy(x => x.Name),
-            ProductSortBy.NameDesc    => query.OrderByDescending(x => x.Name),
-            ProductSortBy.QuantityAsc => query.OrderBy(x => x.Quantity),
+            ProductSortBy.Oldest       => query.OrderBy(x => x.DateCreated),
+            ProductSortBy.NameAsc      => query.OrderBy(x => x.Name),
+            ProductSortBy.NameDesc     => query.OrderByDescending(x => x.Name),
+            ProductSortBy.QuantityAsc  => query.OrderBy(x => x.Quantity),
             ProductSortBy.QuantityDesc => query.OrderByDescending(x => x.Quantity),
-            _                         => query.OrderByDescending(x => x.Id)
+            _                          => query.OrderByDescending(x => x.DateCreated)  
         };
 
         var records = await query
@@ -764,7 +781,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
 
-        if (store is null || store.Business.UserId != userId)
+        if (store is null || (!accessContext.IsPlatformAdmin && store.Business.UserId != userId))
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -895,7 +912,9 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         Tags = DeserializeStringList(product.TagsJson),
         Weight = product.Weight,
         SupplierId = product.SupplierId,
-        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice)
+        ProfitMargin = CalculateProfitMargin(product.Price, product.CostPrice),
+        CreatedAt = product.DateCreated,
+        UpdatedAt = product.DateUpdated
     };
 
     public async Task<ApiResponse<IReadOnlyCollection<ProductResponse>>> UpdateAsync(long id, CreateProductRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
@@ -914,7 +933,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<IReadOnlyCollection<ProductResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1108,6 +1127,26 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreUpdated,
+            nameof(Product),
+            $"Product '{normalizedName}' updated in {targetProducts.Count} store location(s).",
+            product.Store.BusinessId,
+            id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = request.StoreId ?? storeId,
+            Type = NotificationType.General,
+            Title = "Product Updated",
+            Message = $"{normalizedName} was updated successfully.",
+            ActionUrl = "/products"
+        }, cancellationToken);
+
         var response = targetProducts
             .Select(x => MapToResponse(x, x.ProductCategory.Name))
             .ToArray();
@@ -1130,7 +1169,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1153,6 +1192,26 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         unitOfWork.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.ProductDeleted,
+            nameof(Product),
+            $"Product '{product.Name}' deleted.",
+            product.Store.BusinessId,
+            product.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = product.StoreId,
+            Type = NotificationType.General,
+            Title = "Product Deleted",
+            Message = $"{product.Name} was deleted.",
+            ActionUrl = "/products"
+        }, cancellationToken);
+
         return ApiResponse<bool>.Ok(true, "Product deleted successfully");
     }
 
@@ -1171,7 +1230,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1193,6 +1252,26 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
         unitOfWork.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreUpdated,
+            nameof(Product),
+            $"Product '{product.Name}' status changed to {(isActive ? "active" : "inactive")}.",
+            product.Store.BusinessId,
+            product.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = product.StoreId,
+            Type = NotificationType.General,
+            Title = "Product Status Updated",
+            Message = $"{product.Name} is now {(isActive ? "active" : "inactive")}.",
+            ActionUrl = "/products"
+        }, cancellationToken);
+
         var successMessage = isActive ? "Product activated successfully" : "Product deactivated successfully";
         return ApiResponse<bool>.Ok(true, successMessage);
     }
@@ -1213,7 +1292,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<ProductResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -1261,7 +1340,7 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
                 [new ApiError("ProductNotFound", "No product found for this id", nameof(id))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<ProductResponse>.Failed(
                 StatusCodes.Status403Forbidden,

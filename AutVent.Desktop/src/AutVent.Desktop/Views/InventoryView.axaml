@@ -1,0 +1,278 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:vm="using:AutVent.Desktop.ViewModels"
+			 x:Class="AutVent.Desktop.Views.InventoryView"
+			 x:DataType="vm:InventoryViewModel"
+			 mc:Ignorable="d"
+			 Background="#F8FAFC">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="24,20,24,24">
+
+	<!-- ════════════ TOOLBAR ════════════ -->
+	<Border Grid.Row="0" Background="White" CornerRadius="12"
+			BoxShadow="0 2 8 0 #0A000000" Padding="16,12" Margin="0,0,0,16">
+	  <Grid ColumnDefinitions="220,*,Auto,Auto">
+
+		<!-- Store Selector -->
+		<StackPanel Grid.Column="0" Spacing="4" Margin="0,0,16,0">
+		  <TextBlock Text="Store" FontSize="11" FontWeight="SemiBold" Foreground="#64748B"/>
+		  <ComboBox ItemsSource="{Binding Stores}"
+					SelectedItem="{Binding SelectedStore}"
+					HorizontalAlignment="Stretch"
+					CornerRadius="8" Padding="10,7"
+					DisplayMemberBinding="{Binding Name}"/>
+		</StackPanel>
+
+		<!-- Search -->
+		<StackPanel Grid.Column="1" Spacing="4" Margin="0,0,10,0">
+		  <TextBlock Text="Search inventory" FontSize="11" FontWeight="SemiBold"
+					 Foreground="#64748B"/>
+		  <TextBox Text="{Binding SearchTerm, Mode=TwoWay}"
+				   PlaceholderText="Product name or SKU..."
+				   CornerRadius="8" Padding="10,7" FontSize="13"
+				   BorderBrush="#E2E8F0"/>
+		</StackPanel>
+
+		<!-- Search Button -->
+		<Button Grid.Column="2"
+				Command="{Binding SearchCommand}"
+				VerticalAlignment="Bottom"
+				Background="#2563EB" Foreground="White"
+				CornerRadius="8" Padding="16,9"
+				FontSize="13" FontWeight="SemiBold"
+				Margin="0,0,8,0"
+				Content="Search"/>
+
+		<!-- Refresh Button -->
+		<Button Grid.Column="3"
+				Command="{Binding LoadInventoryCommand}"
+				VerticalAlignment="Bottom"
+				Background="#F1F5F9" Foreground="#374151"
+				CornerRadius="8" Padding="14,9"
+				FontSize="13"
+				Content="Refresh"/>
+	  </Grid>
+	</Border>
+
+	<!-- ════════════ CONTENT: LIST + SIDE PANEL ════════════ -->
+	<Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+
+	  <!-- ── Inventory List ── -->
+	  <Border Grid.Column="0" Background="White" CornerRadius="12"
+			  BoxShadow="0 2 8 0 #0A000000" ClipToBounds="True">
+		<Grid RowDefinitions="44,*">
+
+		  <!-- Column Headers -->
+		  <Border Grid.Row="0" Background="#F8FAFC"
+				  BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="16,0">
+			<Grid ColumnDefinitions="90,*,110,115,100,130" VerticalAlignment="Center">
+			  <TextBlock Text="SKU" FontSize="11" FontWeight="SemiBold" Foreground="#64748B"/>
+			  <TextBlock Grid.Column="1" Text="PRODUCT" FontSize="11"
+						 FontWeight="SemiBold" Foreground="#64748B"/>
+			  <TextBlock Grid.Column="2" Text="ON HAND" FontSize="11"
+						 FontWeight="SemiBold" Foreground="#64748B" TextAlignment="Right"/>
+			  <TextBlock Grid.Column="3" Text="REORDER LEVEL" FontSize="11"
+						 FontWeight="SemiBold" Foreground="#64748B" TextAlignment="Right"/>
+			  <TextBlock Grid.Column="4" Text="STATUS" FontSize="11"
+						 FontWeight="SemiBold" Foreground="#64748B" TextAlignment="Center"/>
+			  <TextBlock Grid.Column="5" Text="" FontSize="11" Foreground="#64748B"/>
+			</Grid>
+		  </Border>
+
+		  <!-- Loading -->
+		  <Border Grid.Row="1" IsVisible="{Binding IsLoading}" Padding="40">
+			<TextBlock Text="Loading inventory..." FontSize="14" Foreground="#64748B"
+					   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+		  </Border>
+
+		  <!-- Empty State -->
+		  <Border Grid.Row="1"
+				  IsVisible="{Binding !IsLoading}"
+				  Padding="40">
+			<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+						IsVisible="{Binding !Items.Count}">
+			  <TextBlock Text="&#x1F4E6;" FontSize="44" HorizontalAlignment="Center"/>
+			  <TextBlock Text="No inventory records found"
+						 FontSize="15" FontWeight="SemiBold" Foreground="#374151"
+						 HorizontalAlignment="Center"/>
+			  <TextBlock Text="Select a store and refresh, or sync from the server."
+						 FontSize="13" Foreground="#64748B" HorizontalAlignment="Center"/>
+			</StackPanel>
+		  </Border>
+
+		  <!-- Data Rows -->
+		  <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
+						IsVisible="{Binding !!Items.Count}">
+			<ItemsControl ItemsSource="{Binding Items}">
+			  <ItemsControl.ItemTemplate>
+				<DataTemplate x:DataType="vm:InventoryRowViewModel">
+				  <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1"
+						  Padding="16,11" Background="White">
+					<Grid ColumnDefinitions="90,*,110,115,100,130">
+
+					  <!-- SKU -->
+					  <Border Background="#EFF6FF" CornerRadius="6"
+							  Padding="6,3" VerticalAlignment="Center"
+							  HorizontalAlignment="Left">
+						<TextBlock Text="{Binding Sku}"
+								   FontSize="11" FontWeight="SemiBold" Foreground="#1D4ED8"
+								   FontFamily="Consolas,monospace"/>
+					  </Border>
+
+					  <!-- Name -->
+					  <TextBlock Grid.Column="1" Text="{Binding ProductName}"
+								 FontSize="13" FontWeight="Medium" Foreground="#111827"
+								 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+								 Margin="0,0,12,0"/>
+
+					  <!-- Qty On Hand -->
+					  <TextBlock Grid.Column="2"
+								 Text="{Binding QuantityOnHand, StringFormat={}{0:N0}}"
+								 FontSize="14" FontWeight="Bold" Foreground="#111827"
+								 TextAlignment="Right" VerticalAlignment="Center"/>
+
+					  <!-- Reorder Level -->
+					  <TextBlock Grid.Column="3"
+								 Text="{Binding ReorderLevel, StringFormat={}{0:N0}}"
+								 FontSize="13" Foreground="#94A3B8"
+								 TextAlignment="Right" VerticalAlignment="Center"/>
+
+					  <!-- Status -->
+					  <Border Grid.Column="4" CornerRadius="20" Padding="10,3"
+							  HorizontalAlignment="Center" VerticalAlignment="Center"
+							  Background="{Binding StockStatusColor}">
+						<TextBlock Text="{Binding StockStatusLabel}"
+								   FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+					  </Border>
+
+					  <!-- Adjust Button -->
+					  <Button Grid.Column="5"
+							  Content="Adjust"
+							  HorizontalAlignment="Center" VerticalAlignment="Center"
+							  Background="#EFF6FF" Foreground="#2563EB"
+							  CornerRadius="8" Padding="14,5"
+							  FontSize="12" FontWeight="SemiBold"
+							  CommandParameter="{Binding}"
+							  Command="{Binding $parent[UserControl].((vm:InventoryViewModel)DataContext).SelectItemCommand}"/>
+					</Grid>
+				  </Border>
+				</DataTemplate>
+			  </ItemsControl.ItemTemplate>
+			</ItemsControl>
+		  </ScrollViewer>
+
+		</Grid>
+	  </Border>
+
+	  <!-- ── Adjust Panel ── -->
+	  <Border Grid.Column="1"
+			  IsVisible="{Binding IsAdjustPanelOpen}"
+			  Width="272" Margin="14,0,0,0"
+			  Background="White" CornerRadius="12"
+			  BoxShadow="0 2 8 0 #0A000000" Padding="20">
+		<StackPanel Spacing="14">
+
+		  <Grid ColumnDefinitions="*,Auto">
+			<TextBlock Text="Adjust Stock" FontSize="15" FontWeight="Bold"
+					   Foreground="#111827" VerticalAlignment="Center"/>
+			<Button Grid.Column="1" Content="✕"
+					Background="Transparent" Foreground="#94A3B8"
+					Padding="6" CornerRadius="6" FontSize="13"
+					Command="{Binding CloseAdjustPanelCommand}"/>
+		  </Grid>
+
+		  <!-- Product Summary -->
+		  <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
+			<StackPanel Spacing="4">
+			  <TextBlock Text="{Binding SelectedItem.ProductName}"
+						 FontSize="13" FontWeight="SemiBold" Foreground="#111827"
+						 TextTrimming="CharacterEllipsis"/>
+			  <TextBlock Text="{Binding SelectedItem.Sku}"
+						 FontSize="11" Foreground="#64748B"/>
+			  <Grid ColumnDefinitions="*,*" Margin="0,8,0,0">
+				<StackPanel>
+				  <TextBlock Text="On Hand" FontSize="10" Foreground="#94A3B8"/>
+				  <TextBlock Text="{Binding SelectedItem.QuantityOnHand, StringFormat={}{0:N0}}"
+							 FontSize="22" FontWeight="Bold" Foreground="#111827"/>
+				</StackPanel>
+				<StackPanel Grid.Column="1">
+				  <TextBlock Text="Reorder" FontSize="10" Foreground="#94A3B8"/>
+				  <TextBlock Text="{Binding SelectedItem.ReorderLevel, StringFormat={}{0:N0}}"
+							 FontSize="22" FontWeight="Bold" Foreground="#94A3B8"/>
+				</StackPanel>
+			  </Grid>
+			</StackPanel>
+		  </Border>
+
+		  <!-- Quantity Delta -->
+		  <StackPanel Spacing="6">
+			<TextBlock Text="Quantity" FontSize="12" FontWeight="Medium" Foreground="#374151"/>
+			<NumericUpDown Value="{Binding AdjustDelta}"
+						   Minimum="0" Maximum="999999" Increment="1"
+						   CornerRadius="8" FontSize="15" FontWeight="Bold"/>
+		  </StackPanel>
+
+		  <!-- Reason -->
+		  <StackPanel Spacing="6">
+			<TextBlock Text="Reason" FontSize="12" FontWeight="Medium" Foreground="#374151"/>
+			<TextBox Text="{Binding AdjustReason, Mode=TwoWay}"
+					 PlaceholderText="Restock, Damaged, Correction..."
+					 CornerRadius="8" Padding="10,8" FontSize="13"
+					 BorderBrush="#E2E8F0"/>
+		  </StackPanel>
+
+		  <!-- Buttons -->
+		  <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+			<Button Grid.Column="0"
+					Command="{Binding StockInCommand}"
+					HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+					Background="#10B981" Foreground="White"
+					CornerRadius="8" Padding="0,10"
+					FontSize="13" FontWeight="SemiBold"
+					Content="+ Stock In"/>
+			<Button Grid.Column="1"
+					Command="{Binding StockOutCommand}"
+					HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+					Background="#EF4444" Foreground="White"
+					CornerRadius="8" Padding="0,10"
+					FontSize="13" FontWeight="SemiBold"
+					Content="- Stock Out"/>
+		  </Grid>
+
+		  <Button Command="{Binding AdjustCommand}"
+				  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+				  Background="#2563EB" Foreground="White"
+				  CornerRadius="8" Padding="0,10"
+				  FontSize="13" FontWeight="SemiBold"
+				  Content="Apply Delta Adjustment"/>
+
+		  <!-- Status -->
+		  <TextBlock Text="{Binding StatusMessage}"
+					 FontSize="12" Foreground="#64748B"
+					 TextWrapping="Wrap"
+					 IsVisible="{Binding !!StatusMessage.Length}"/>
+
+		</StackPanel>
+	  </Border>
+
+	</Grid>
+
+	<!-- ════════════ FOOTER STATUS BAR ════════════ -->
+	<Border Grid.Row="2" Margin="0,12,0,0"
+			Background="White" CornerRadius="10"
+			BorderBrush="#E2E8F0" BorderThickness="1" Padding="16,8">
+	  <Grid ColumnDefinitions="Auto,*,Auto">
+		<TextBlock Text="{Binding TotalItems, StringFormat='Total: {0} items'}"
+				   FontSize="12" Foreground="#64748B" VerticalAlignment="Center"/>
+		<TextBlock Grid.Column="2"
+				   Text="{Binding LowStockCount, StringFormat='⚠ {0} low stock'}"
+				   FontSize="12" FontWeight="SemiBold" Foreground="#F59E0B"
+				   VerticalAlignment="Center"
+				   IsVisible="{Binding !!LowStockCount}"/>
+	  </Grid>
+	</Border>
+
+  </Grid>
+</UserControl>

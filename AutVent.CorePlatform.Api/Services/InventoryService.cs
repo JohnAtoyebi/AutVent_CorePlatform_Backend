@@ -7,9 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
+public sealed class InventoryService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IInventoryService
 {
     private const string SystemActor = "system";
+    private const long DefaultLowStockThreshold = 5;
 
     public async Task<ApiResponse<InventorySummaryResponse>> GetSummaryAsync(InventorySummaryFilterRequest request, long userId, long storeId, CancellationToken cancellationToken = default)
     {
@@ -25,7 +30,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<InventorySummaryResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -83,8 +88,8 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 x.StoreId == storeId &&
                 x.DateCreated >= startDate &&
                 x.DateCreated <= endDate &&
-                x.ReorderThreshold.HasValue &&
-                x.Quantity <= x.ReorderThreshold.Value)
+                x.Quantity > 0 &&
+                x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold))
             .CountAsync(cancellationToken);
 
         var previousLowStockCount = await unitOfWork.Query<Product>()
@@ -92,8 +97,8 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 x.StoreId == storeId &&
                 x.DateCreated >= previousStartDate &&
                 x.DateCreated < previousEndDate &&
-                x.ReorderThreshold.HasValue &&
-                x.Quantity <= x.ReorderThreshold.Value)
+                x.Quantity > 0 &&
+                x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold))
             .CountAsync(cancellationToken);
 
         var outOfStockCount = await unitOfWork.Query<Product>()
@@ -138,7 +143,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<PagedResponse<InventoryItemResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -175,8 +180,15 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
 
                 if (parsedIds.Count > 0)
                 {
-                    var authorizedStoreIds = await unitOfWork.Query<Store>()
-                        .Where(x => parsedIds.Contains(x.Id) && x.Business.UserId == userId)
+                    var authorizedStoresQuery = unitOfWork.Query<Store>()
+                        .Where(x => parsedIds.Contains(x.Id));
+
+                    if (!accessContext.IsPlatformAdmin)
+                    {
+                        authorizedStoresQuery = authorizedStoresQuery.Where(x => x.Business.UserId == userId);
+                    }
+
+                    var authorizedStoreIds = await authorizedStoresQuery
                         .Select(x => x.Id)
                         .ToListAsync(cancellationToken);
 
@@ -200,16 +212,16 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 query = stockStatus switch
                 {
                     InventoryStockStatus.OutOfStock => query.Where(x => x.Quantity == 0),
-                    InventoryStockStatus.LowStock   => query.Where(x => x.Quantity > 0 && x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value),
-                    InventoryStockStatus.InStock    => query.Where(x => x.Quantity > 0 && (!x.ReorderThreshold.HasValue || x.Quantity > x.ReorderThreshold.Value)),
+                    InventoryStockStatus.LowStock   => query.Where(x => x.Quantity > 0 && x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold)),
+                    InventoryStockStatus.InStock    => query.Where(x => x.Quantity > 0 && x.Quantity > (x.ReorderThreshold ?? DefaultLowStockThreshold)),
                     _ => query
                 };
             }
             else if (request.Filters.TryGetValue("isLowStock", out var isLowStockFilter) && bool.TryParse(isLowStockFilter, out var isLowStock))
             {
                 query = isLowStock
-                    ? query.Where(x => x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value)
-                    : query.Where(x => !x.ReorderThreshold.HasValue || x.Quantity > x.ReorderThreshold.Value);
+                    ? query.Where(x => x.Quantity > 0 && x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold))
+                    : query.Where(x => x.Quantity == 0 || x.Quantity > (x.ReorderThreshold ?? DefaultLowStockThreshold));
             }
 
             if (request.Filters.TryGetValue("isActive", out var isActiveFilter) && bool.TryParse(isActiveFilter, out var isActive))
@@ -255,7 +267,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 Sku = x.Sku,
                 Quantity = x.Quantity,
                 ReorderThreshold = x.ReorderThreshold,
-                IsLowStock = x.ReorderThreshold.HasValue && x.Quantity <= x.ReorderThreshold.Value,
+                IsLowStock = x.Quantity > 0 && x.Quantity <= (x.ReorderThreshold ?? DefaultLowStockThreshold),
                 IsActive = x.IsActive,
                 ProductCategory = x.ProductCategory.Name,
                 CostPrice = x.CostPrice
@@ -290,7 +302,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                 [new ApiError("ProductNotFound", "No product found for this id in the selected store", nameof(productId))]);
         }
 
-        if (product.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && product.Store.Business.UserId != userId)
         {
             return ApiResponse<InventoryItemResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -303,7 +315,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == request.LocationStoreId, cancellationToken);
 
-        if (locationStore is null || locationStore.Business.UserId != userId)
+        if (locationStore is null || (!accessContext.IsPlatformAdmin && locationStore.Business.UserId != userId))
         {
             return ApiResponse<InventoryItemResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -312,6 +324,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
         }
 
         var now = DateTime.UtcNow;
+        var oldQuantity = product.Quantity;
 
         if (request.Type == StockAdjustmentType.StockIn)
         {
@@ -325,7 +338,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
                     ? (existingQty * existingCost + request.Quantity * newCost) / (existingQty + request.Quantity)
                     : newCost;
 
-                product.CostPrice = Math.Round(weightedAverage, 2).ToString("F2");
+                product.Price = Math.Round(weightedAverage, 2).ToString("F2");
             }
 
             product.Quantity += request.Quantity;
@@ -349,6 +362,34 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
         unitOfWork.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Log audit trail for stock adjustment
+        var adjustmentType = request.Type == StockAdjustmentType.StockIn ? "Stock In" : "Stock Out";
+        var description = $"{adjustmentType} - {request.Quantity} units. Reason: {request.Reason}";
+        var oldValues = $"Quantity: {oldQuantity}";
+        var newValues = $"Quantity: {product.Quantity}";
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StockAdjusted,
+            "Product",
+            description,
+            product.Store.BusinessId,
+            product.Id,
+            oldValues,
+            newValues,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = product.StoreId,
+            Type = NotificationType.General,
+            Title = "Inventory Updated",
+            Message = $"{product.Name}: {adjustmentType} of {request.Quantity} unit(s). Stock changed from {oldQuantity} to {product.Quantity}.",
+            ActionUrl = $"/inventory/store/{product.StoreId}/items"
+        }, cancellationToken);
+
         var response = new InventoryItemResponse
         {
             ProductId = product.Id,
@@ -357,7 +398,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
             Sku = product.Sku,
             Quantity = product.Quantity,
             ReorderThreshold = product.ReorderThreshold,
-            IsLowStock = product.ReorderThreshold.HasValue && product.Quantity <= product.ReorderThreshold.Value,
+            IsLowStock = product.Quantity > 0 && product.Quantity <= (product.ReorderThreshold ?? DefaultLowStockThreshold),
             IsActive = product.IsActive,
             ProductCategory = product.ProductCategory.Name,
             CostPrice = product.CostPrice
@@ -384,5 +425,76 @@ public sealed class InventoryService(IUnitOfWork unitOfWork) : IInventoryService
         }
 
         return Math.Round(((decimal)(currentValue - previousValue) / previousValue) * 100, 2);
+    }
+
+    public async Task<ApiResponse<BusinessInventorySummaryResponse>> GetBusinessInventorySummaryAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        // Get the user's business
+        var business = await unitOfWork.Query<Business>()
+            .Include(b => b.Stores)
+            .FirstOrDefaultAsync(b => b.UserId == userId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<BusinessInventorySummaryResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this user", nameof(userId))]);
+        }
+
+        var businessStoreIds = business.Stores.Select(s => s.Id).ToList();
+
+        if (businessStoreIds.Count == 0)
+        {
+            return ApiResponse<BusinessInventorySummaryResponse>.Ok(new BusinessInventorySummaryResponse
+            {
+                BusinessId = business.Id,
+                LowStockCount = 0,
+                OutOfStockCount = 0,
+                TotalStockValue = 0,
+                StockLocationCount = 0
+            });
+        }
+
+        // Get all products across all stores
+        var products = await unitOfWork.Query<Product>()
+            .Include(p => p.Store)
+            .Where(p => businessStoreIds.Contains(p.StoreId) && !p.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        // Count low stock items
+        var lowStockCount = products
+            .Count(p => p.Quantity > 0 && p.Quantity <= (p.ReorderThreshold ?? DefaultLowStockThreshold));
+
+        // Count out of stock items
+        var outOfStockCount = products
+            .Count(p => p.Quantity == 0);
+
+        // Calculate total stock value
+        var totalStockValue = products.Sum(p =>
+        {
+            if (decimal.TryParse(p.Price, out var cost))
+            {
+                return cost * p.Quantity;
+            }
+            return 0;
+        });
+
+        // Count stock locations (stores with inventory)
+        var stockLocationCount = products
+            .Select(p => p.Store.Id)
+            .Distinct()
+            .Count();
+
+        var summary = new BusinessInventorySummaryResponse
+        {
+            BusinessId = business.Id,
+            LowStockCount = lowStockCount,
+            OutOfStockCount = outOfStockCount,
+            TotalStockValue = totalStockValue,
+            StockLocationCount = stockLocationCount
+        };
+
+        return ApiResponse<BusinessInventorySummaryResponse>.Ok(summary);
     }
 }

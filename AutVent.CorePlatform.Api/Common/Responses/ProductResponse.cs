@@ -33,4 +33,6 @@ public sealed class ProductResponse
     public decimal? Weight { get; init; }
     public long? SupplierId { get; init; }
     public decimal? ProfitMargin { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? UpdatedAt { get; init; }
 }

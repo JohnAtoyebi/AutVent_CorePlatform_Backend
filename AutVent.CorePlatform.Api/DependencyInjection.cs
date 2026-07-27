@@ -13,6 +13,8 @@ public static class DependencyInjection
         services.Configure<EmailOptions>(configuration.GetSection("Email"));
         services.Configure<AppOptions>(configuration.GetSection("App"));
         services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAccessContext, AccessContext>();
         services.AddScoped<IImageService, CloudinaryImageService>();
         services.AddHttpClient(nameof(ResendEmailProvider));
         services.AddTransient<ResendEmailProvider>();
@@ -25,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IBusinessService, BusinessService>();
         services.AddScoped<IStoreService, StoreService>();
+        services.AddScoped<IBankAccountService, BankAccountService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IStaffRangeService, StaffRangeService>();
@@ -39,7 +42,11 @@ public static class DependencyInjection
         services.AddScoped<IMetricsService, MetricsService>();
         services.AddScoped<ISupportService, SupportService>();
         services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IWaitlistService, WaitlistService>();
         services.AddScoped<BusinessIndustrySeeder>();
         services.AddScoped<StaffRangeSeeder>();
         services.AddScoped<StoreCategorySeeder>();

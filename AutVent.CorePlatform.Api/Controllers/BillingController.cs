@@ -55,4 +55,29 @@ public sealed class BillingController(IBillingService billingService) : ApiContr
         var result = await billingService.GetAllAsync(CurrentUserId, request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("businesses/{businessId:long}/subscriptions")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBusinessSubscriptions(
+        long businessId,
+        [FromQuery] PagedQueryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await billingService.GetSubscriptionsByBusinessIdAsync(businessId, CurrentUserId, request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("businesses/{businessId:long}/subscriptions/active")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetActiveBusinessSubscription(
+        long businessId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await billingService.GetActiveSubscriptionByBusinessIdAsync(businessId, CurrentUserId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

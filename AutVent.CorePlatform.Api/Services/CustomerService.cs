@@ -1,12 +1,17 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
+public sealed class CustomerService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : ICustomerService
 {
     private const string SystemActor = "system";
 
@@ -25,7 +30,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<CustomerResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -97,7 +102,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("CustomerNotFound", "No customer found for this id", nameof(id))]);
         }
 
-        if (customer.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && customer.Store.Business.UserId != userId)
         {
             return ApiResponse<CustomerResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -116,8 +121,12 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
         var query = unitOfWork.Query<Customer>()
             .Include(x => x.Store)
             .ThenInclude(x => x.Business)
-            .Where(x => x.Store.Business.UserId == userId)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Store.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -177,7 +186,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("CustomerNotFound", "No customer found for this id", nameof(id))]);
         }
 
-        if (customer.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && customer.Store.Business.UserId != userId)
         {
             return ApiResponse<CustomerResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -228,6 +237,26 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
         unitOfWork.Update(customer);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserProfileUpdated,
+            nameof(Customer),
+            $"Customer '{customer.FullName}' updated.",
+            customer.Store.BusinessId,
+            customer.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = customer.Store.BusinessId,
+            StoreId = customer.StoreId,
+            Type = NotificationType.General,
+            Title = "Customer Updated",
+            Message = $"{customer.FullName} was updated successfully.",
+            ActionUrl = "/customers"
+        }, cancellationToken);
+
         return ApiResponse<CustomerResponse>.Ok(MapToResponse(customer), "Customer updated successfully");
     }
 
@@ -246,7 +275,7 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
                 [new ApiError("CustomerNotFound", "No customer found for this id", nameof(id))]);
         }
 
-        if (customer.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && customer.Store.Business.UserId != userId)
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -256,6 +285,26 @@ public sealed class CustomerService(IUnitOfWork unitOfWork) : ICustomerService
 
         unitOfWork.Delete(customer);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.CustomerDeleted,
+            nameof(Customer),
+            $"Customer '{customer.FullName}' deleted.",
+            customer.Store.BusinessId,
+            customer.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = customer.Store.BusinessId,
+            StoreId = customer.StoreId,
+            Type = NotificationType.General,
+            Title = "Customer Deleted",
+            Message = $"{customer.FullName} was deleted.",
+            ActionUrl = "/customers"
+        }, cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Customer deleted successfully");
     }

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
+public sealed class PosService(IUnitOfWork unitOfWork, INotificationService notificationService, IAccessContext accessContext) : IPosService
 {
     private const string SystemActor = "system";
 
@@ -62,7 +62,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
                 [new ApiError("StoreNotFound", "No store found for this id", nameof(storeId))]);
         }
 
-        if (store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && store.Business.UserId != userId)
         {
             return ApiResponse<SaleResponse>.Failed(
                 StatusCodes.Status409Conflict,
@@ -262,6 +262,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             PaymentMethod = request.PaymentMethod,
             Status = saleStatus,
             Notes = request.Notes,
+            StaffId = request.StaffId,
             SaleItems = saleItems,
             IsActive = true,
             CreatedBy = SystemActor,
@@ -276,6 +277,22 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Notify the business owner
+        var notifTitle = isPartPayment ? "Part payment received" : "New sale completed";
+        var notifMessage = isPartPayment
+            ? $"Sale {sale.SaleNumber} recorded with part payment of ₦{request.AmountPaid:N2}. Balance due: ₦{sale.BalanceRemaining:N2}."
+            : $"Sale {sale.SaleNumber} completed for ₦{sale.TotalAmount:N2}.";
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = store.Business.UserId,
+            BusinessId = store.Business.Id,
+            Type = isPartPayment ? NotificationType.SalePartPayment : NotificationType.SaleCompleted,
+            Title = notifTitle,
+            Message = notifMessage,
+            ActionUrl = $"/sales/{sale.Id}"
+        }, cancellationToken);
 
         var createdSale = await unitOfWork.Query<Sale>()
             .Include(x => x.Customer)
@@ -306,7 +323,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
                 [new ApiError("SaleNotFound", "No sale found for this id", nameof(id))]);
         }
 
-        if (sale.Store.Business.UserId != userId)
+        if (!accessContext.IsPlatformAdmin && sale.Store.Business.UserId != userId)
         {
             return ApiResponse<SaleResponse>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -324,7 +341,7 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == storeId, cancellationToken);
 
-        if (store is null || store.Business.UserId != userId)
+        if (store is null || (!accessContext.IsPlatformAdmin && store.Business.UserId != userId))
         {
             return ApiResponse<PagedResponse<SaleResponse>>.Failed(
                 StatusCodes.Status403Forbidden,
@@ -351,8 +368,12 @@ public sealed class PosService(IUnitOfWork unitOfWork) : IPosService
             .Include(x => x.Customer)
             .Include(x => x.SaleItems)
             .ThenInclude(x => x.Product)
-            .Where(x => x.Store.Business.UserId == userId)
             .AsQueryable();
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Store.Business.UserId == userId);
+        }
 
         if (storeId.HasValue)
         {

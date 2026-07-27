@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AutVent.CorePlatform.Domain.Enums;
+using Microsoft.AspNetCore.Http;
 
 namespace AutVent.CorePlatform.Api.Common.Requests;
 
@@ -38,12 +39,19 @@ public sealed class CreateInvoiceRequest
     [Range(0, double.MaxValue)]
     public decimal DiscountValue { get; init; }
 
+    /// <summary>Tax/VAT rate as percentage (e.g., 7.5 for 7.5%).</summary>
+    [Range(0, 100)]
+    public decimal TaxAmount { get; init; } = 7.5m;
+
     [Required]
     [EnumDataType(typeof(SalePaymentMethod))]
     public SalePaymentMethod PaymentMethod { get; init; }
 
     [MaxLength(500)]
     public string? Notes { get; init; }
+
+    /// <summary>Optional invoice document file (PDF, etc.) to send to customer email.</summary>
+    public IFormFile? InvoiceDocument { get; init; }
 
     [Required]
     [MinLength(1)]
@@ -70,6 +78,10 @@ public sealed class UpdateInvoiceRequest
     [Range(0, double.MaxValue)]
     public decimal DiscountValue { get; init; }
 
+    /// <summary>Tax/VAT rate as percentage (e.g., 7.5 for 7.5%).</summary>
+    [Range(0, 100)]
+    public decimal TaxAmount { get; init; } 
+
     [Required]
     [EnumDataType(typeof(SalePaymentMethod))]
     public SalePaymentMethod PaymentMethod { get; init; }
@@ -91,4 +103,10 @@ public sealed class RecordInvoicePaymentRequest
     [Required]
     [EnumDataType(typeof(SalePaymentMethod))]
     public SalePaymentMethod PaymentMethod { get; init; }
+}
+
+public sealed class MarkInvoiceAsSentRequest
+{
+    /// <summary>Optional invoice document file (PDF, etc.) to send to customer email.</summary>
+    public IFormFile? InvoiceDocument { get; init; }
 }

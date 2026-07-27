@@ -22,6 +22,79 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Action")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("BusinessId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<long?>("EntityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NewValues")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldValues")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BillingSubscriptionTransaction", b =>
                 {
                     b.Property<long>("Id")
@@ -114,6 +187,10 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<long>("BusinessIndustryId")
                         .HasColumnType("bigint");
 
@@ -121,6 +198,101 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<long>("StaffRangeId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessIndustryId");
+
+                    b.HasIndex("StaffRangeId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Businesses");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessBankAccount", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("BusinessId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -139,28 +311,25 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<long>("StaffRangeId")
-                        .HasColumnType("bigint");
+                    b.Property<string>("SortCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<long>("UserId")
-                        .HasColumnType("bigint");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessIndustryId");
+                    b.HasIndex("BusinessId");
 
-                    b.HasIndex("StaffRangeId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Businesses");
+                    b.ToTable("BusinessBankAccounts");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessIndustry", b =>
@@ -206,6 +375,54 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("BusinessIndustries");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessProductCategory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BusinessId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("ProductCategoryId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductCategoryId");
+
+                    b.HasIndex("BusinessId", "ProductCategoryId")
+                        .IsUnique();
+
+                    b.ToTable("BusinessProductCategories");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessSubscription", b =>
@@ -505,6 +722,90 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.ToTable("InvoiceItems");
                 });
 
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Notification", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActionUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long?>("BusinessId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("StoreId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("StoreId");
+
+                    b.HasIndex("UserId", "IsRead");
+
+                    b.HasIndex("UserId", "StoreId", "IsRead");
+
+                    b.ToTable("Notifications");
+                });
+
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Otp", b =>
                 {
                     b.Property<long>("Id")
@@ -797,6 +1098,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<long?>("CreatedByBusinessId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime>("DateCreated")
                         .HasColumnType("timestamp with time zone");
 
@@ -807,6 +1111,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
@@ -822,6 +1129,8 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByBusinessId");
 
                     b.HasIndex("Name")
                         .IsUnique();
@@ -1105,6 +1414,9 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<long?>("StaffId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1132,6 +1444,8 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     b.HasIndex("SaleNumber")
                         .IsUnique();
+
+                    b.HasIndex("StaffId");
 
                     b.HasIndex("StoreId");
 
@@ -1484,8 +1798,20 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<long>("BusinessId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
@@ -1521,6 +1847,10 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<long>("StoreCategoryId")
                         .HasColumnType("bigint");
@@ -1808,9 +2138,16 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("ProfilePhotoUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("ReferralCode")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<long?>("RoleId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(200)
@@ -1827,7 +2164,92 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.HasIndex("ReferralCode")
                         .IsUnique();
 
+                    b.HasIndex("RoleId");
+
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.WaitlistEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("BusinessType")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateDeleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DateUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmailAddress")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsContacted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmailAddress")
+                        .IsUnique();
+
+                    b.ToTable("WaitlistEntries");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.AuditLog", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BillingSubscriptionTransaction", b =>
@@ -1874,6 +2296,36 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("StaffRange");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessBankAccount", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessProductCategory", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.ProductCategory", "ProductCategory")
+                        .WithMany("BusinessMappings")
+                        .HasForeignKey("ProductCategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("ProductCategory");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.BusinessSubscription", b =>
@@ -1943,6 +2395,31 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Store");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.PasswordResetToken", b =>
                 {
                     b.HasOne("AutVent.CorePlatform.Domain.Entities.User", "User")
@@ -1978,6 +2455,16 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("Store");
 
                     b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ProductCategory", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Business", "CreatedByBusiness")
+                        .WithMany()
+                        .HasForeignKey("CreatedByBusinessId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedByBusiness");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ReferralRecord", b =>
@@ -2036,6 +2523,11 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Staff", "Staff")
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("AutVent.CorePlatform.Domain.Entities.Store", "Store")
                         .WithMany()
                         .HasForeignKey("StoreId")
@@ -2043,6 +2535,8 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Customer");
+
+                    b.Navigation("Staff");
 
                     b.Navigation("Store");
                 });
@@ -2169,6 +2663,16 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
                     b.Navigation("StoreCategory");
                 });
 
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.User", b =>
+                {
+                    b.HasOne("AutVent.CorePlatform.Domain.Entities.Role", "Role")
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Role");
+                });
+
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Business", b =>
                 {
                     b.Navigation("Stores");
@@ -2182,6 +2686,11 @@ namespace AutVent.CorePlatform.Infrastructure.Migrations
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Permission", b =>
                 {
                     b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.ProductCategory", b =>
+                {
+                    b.Navigation("BusinessMappings");
                 });
 
             modelBuilder.Entity("AutVent.CorePlatform.Domain.Entities.Role", b =>

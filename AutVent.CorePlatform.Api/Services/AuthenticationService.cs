@@ -9,10 +9,10 @@ using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Api.Infrastructure.Email;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 
 namespace AutVent.CorePlatform.Api.Services;
 
@@ -22,7 +22,8 @@ public sealed class AuthenticationService(
     IEmailProvider emailProvider,
     IOptions<EmailOptions> emailOptions,
     IOptions<AppOptions> appOptions,
-    IJwtTokenService jwtTokenService) : IAuthenticationService
+    IJwtTokenService jwtTokenService,
+    IAuditLogService auditLogService) : IAuthenticationService
 {
     private const string SystemActor = "system";
 
@@ -32,6 +33,7 @@ public sealed class AuthenticationService(
         var hashedPassword = PasswordHasher.Hash(request.Password);
 
         var user = await unitOfWork.Query<User>()
+            .Include(x => x.Role)
             .FirstOrDefaultAsync(x => x.EmailAddress.ToLower() == normalizedEmail, cancellationToken);
 
         if (user is null || !string.Equals(user.Password, hashedPassword, StringComparison.Ordinal))
@@ -69,6 +71,14 @@ public sealed class AuthenticationService(
 
         await unitOfWork.CreateAsync(refreshToken, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            user.Id,
+            AuditAction.UserSignedIn,
+            nameof(User),
+            $"User '{user.EmailAddress}' signed in.",
+            entityId: user.Id,
+            cancellationToken: cancellationToken);
 
         var (accessToken, accessExpiresAt) = jwtTokenService.GenerateAccessTokenWithExpiry(user);
 
@@ -229,6 +239,7 @@ public sealed class AuthenticationService(
 
         var storedToken = await unitOfWork.Query<RefreshToken>()
             .Include(x => x.User)
+                .ThenInclude(x => x.Role)
             .FirstOrDefaultAsync(x => x.Token == request.RefreshToken, cancellationToken);
 
         if (storedToken is null)

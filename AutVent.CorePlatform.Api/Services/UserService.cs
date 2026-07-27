@@ -2,12 +2,13 @@ using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Api.Common.Security;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
+public sealed class UserService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, INotificationService notificationService) : IUserService
 {
     private const string SystemActor = "system";
 
@@ -24,6 +25,17 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
                 [new ApiError("UserNotFound", "No user found for this id", "userId")]);
         }
 
+        // Backfill: accounts created before referral codes were introduced arrive with null.
+        // Generate and persist a code now so the caller always gets a non-null value.
+        if (string.IsNullOrWhiteSpace(user.ReferralCode))
+        {
+            user.ReferralCode = await GenerateUniqueReferralCodeAsync(cancellationToken);
+            user.UpdatedBy = SystemActor;
+            user.DateUpdated = DateTime.UtcNow;
+            unitOfWork.Update(user);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
         var response = new UserProfileResponse
         {
             Id = user.Id,
@@ -32,6 +44,7 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
             PhoneNumber = user.PhoneNumber,
             ReferralCode = user.ReferralCode,
             IsActive = user.IsActive,
+            ProfilePhotoUrl = user.ProfilePhotoUrl,
             MemberSince = user.DateCreated
         };
 
@@ -71,18 +84,40 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
 
         user.FullName = request.FullName.Trim();
         user.PhoneNumber = normalizedPhone;
+        if (request.ProfilePhotoUrl is not null)
+            user.ProfilePhotoUrl = request.ProfilePhotoUrl.Trim();
         user.UpdatedBy = SystemActor;
         user.DateUpdated = now;
 
         unitOfWork.Update(user);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserProfileUpdated,
+            nameof(User),
+            $"User '{user.EmailAddress}' updated profile details.",
+            entityId: user.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(
+            new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.General,
+                Title = "Profile Updated",
+                Message = "Your profile details were updated successfully.",
+                ActionUrl = "/profile"
+            },
+            cancellationToken);
+
         return ApiResponse<UpdateProfileResponse>.Ok(
             new UpdateProfileResponse
             {
                 Id = user.Id,
                 FullName = user.FullName,
-                PhoneNumber = user.PhoneNumber
+                PhoneNumber = user.PhoneNumber,
+                ProfilePhotoUrl = user.ProfilePhotoUrl
             },
             "Profile updated successfully");
     }
@@ -116,6 +151,14 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
 
         unitOfWork.Update(user);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserPasswordChanged,
+            nameof(User),
+            $"User '{user.EmailAddress}' changed their password.",
+            entityId: userId,
+            cancellationToken: cancellationToken);
 
         return ApiResponse<ChangePasswordResponse>.Ok(
             new ChangePasswordResponse { UserId = user.Id },
@@ -178,6 +221,18 @@ public sealed class UserService(IUnitOfWork unitOfWork) : IUserService
         return ApiResponse<ChangeEmailResponse>.Ok(
             new ChangeEmailResponse { UserId = user.Id, NewEmailAddress = normalizedEmail },
             "Email address updated. Please verify your new email before signing in again");
+    }
+
+    private async Task<string> GenerateUniqueReferralCodeAsync(CancellationToken cancellationToken)
+    {
+        string code;
+        do
+        {
+            code = ReferralCodeGenerator.Generate();
+        }
+        while (await unitOfWork.Query<User>().AnyAsync(x => x.ReferralCode == code, cancellationToken));
+
+        return code;
     }
 }
 

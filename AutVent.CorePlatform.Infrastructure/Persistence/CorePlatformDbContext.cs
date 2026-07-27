@@ -14,6 +14,7 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<BusinessProductCategory> BusinessProductCategories => Set<BusinessProductCategory>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
@@ -34,6 +35,10 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
     public DbSet<BillingSubscriptionTransaction> BillingSubscriptionTransactions => Set<BillingSubscriptionTransaction>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<BusinessBankAccount> BusinessBankAccounts => Set<BusinessBankAccount>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,9 +49,14 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Password).HasMaxLength(500).IsRequired();
             entity.Property(x => x.ReferralCode).HasMaxLength(50);
+            entity.Property(x => x.ProfilePhotoUrl).HasMaxLength(1000);
             entity.HasIndex(x => x.EmailAddress).IsUnique();
             entity.HasIndex(x => x.PhoneNumber).IsUnique();
             entity.HasIndex(x => x.ReferralCode).IsUnique();
+            entity.HasOne(x => x.Role)
+                  .WithMany()
+                  .HasForeignKey(x => x.RoleId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Otp>(entity =>
@@ -59,6 +69,14 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         modelBuilder.Entity<Business>(entity =>
         {
             entity.Property(x => x.BusinessName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.LogoUrl).HasMaxLength(1000);
+            entity.Property(x => x.Email).HasMaxLength(200);
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20);
+            entity.Property(x => x.Website).HasMaxLength(500);
+            entity.Property(x => x.Address).HasMaxLength(500);
+            entity.Property(x => x.City).HasMaxLength(100);
+            entity.Property(x => x.State).HasMaxLength(100);
+            entity.Property(x => x.Country).HasMaxLength(100);
 
             entity.HasOne(x => x.User)
                 .WithMany()
@@ -93,6 +111,10 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.EmailAddress).HasMaxLength(200).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Address).HasMaxLength(500);
+            entity.Property(x => x.City).HasMaxLength(100);
+            entity.Property(x => x.State).HasMaxLength(100);
+            entity.Property(x => x.Country).HasMaxLength(100);
 
             entity.HasOne(x => x.StoreCategory)
                 .WithMany()
@@ -139,7 +161,30 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
         modelBuilder.Entity<ProductCategory>(entity =>
         {
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            // Name is globally unique across the catalog
             entity.HasIndex(x => x.Name).IsUnique();
+
+            entity.HasOne(x => x.CreatedByBusiness)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByBusinessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<BusinessProductCategory>(entity =>
+        {
+            // One business-category pair per business
+            entity.HasIndex(x => new { x.BusinessId, x.ProductCategoryId }).IsUnique();
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.ProductCategory)
+                .WithMany(x => x.BusinessMappings)
+                .HasForeignKey(x => x.ProductCategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PasswordResetToken>(entity =>
@@ -185,6 +230,11 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             entity.HasOne(x => x.Customer)
                 .WithMany()
                 .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.Staff)
+                .WithMany()
+                .HasForeignKey(x => x.StaffId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -236,7 +286,46 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<BusinessBankAccount>(entity =>
+        {
+            entity.Property(x => x.BankName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.AccountNumber).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.AccountName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SortCode).HasMaxLength(20);
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         ConfigureBaseEntityProperties(modelBuilder);
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ActionUrl).HasMaxLength(500);
+            entity.HasIndex(x => new { x.UserId, x.IsRead });
+            entity.HasIndex(x => new { x.UserId, x.StoreId, x.IsRead });
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Business)
+                .WithMany()
+                .HasForeignKey(x => x.BusinessId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(x => x.Store)
+                .WithMany()
+                .HasForeignKey(x => x.StoreId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
 
         modelBuilder.Entity<ReferralRecord>(entity =>
         {
@@ -426,7 +515,23 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.Property(x => x.EntityType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.IpAddress).HasMaxLength(50);
+            entity.HasOne(x => x.User)
+                  .WithMany()
+                  .HasForeignKey(x => x.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Business)
+                  .WithMany()
+                  .HasForeignKey(x => x.BusinessId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
         base.OnModelCreating(modelBuilder);
+        ConfigureWaitlistEntry(modelBuilder);
     }
 
     private static void ConfigureBaseEntityProperties(ModelBuilder modelBuilder)
@@ -438,5 +543,18 @@ public sealed class CorePlatformDbContext(DbContextOptions<CorePlatformDbContext
             modelBuilder.Entity(entityType.ClrType).Property(nameof(BaseEntity.UpdatedBy)).HasMaxLength(200);
             modelBuilder.Entity(entityType.ClrType).Property(nameof(BaseEntity.DateCreated)).IsRequired();
         }
+    }
+
+    private static void ConfigureWaitlistEntry(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WaitlistEntry>(entity =>
+        {
+            entity.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.EmailAddress).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(20);
+            entity.Property(x => x.BusinessType).HasMaxLength(200);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasIndex(x => x.EmailAddress).IsUnique();
+        });
     }
 }

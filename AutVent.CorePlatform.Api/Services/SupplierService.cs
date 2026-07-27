@@ -1,12 +1,16 @@
 using AutVent.CorePlatform.Api.Common.Requests;
 using AutVent.CorePlatform.Api.Common.Responses;
 using AutVent.CorePlatform.Domain.Entities;
+using AutVent.CorePlatform.Domain.Enums;
 using AutVent.CorePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class SupplierService(IUnitOfWork unitOfWork) : ISupplierService
+public sealed class SupplierService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService) : ISupplierService
 {
     private const string SystemActor = "system";
 
@@ -126,6 +130,23 @@ public sealed class SupplierService(IUnitOfWork unitOfWork) : ISupplierService
         unitOfWork.Update(supplier);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreUpdated,
+            nameof(Supplier),
+            $"Supplier '{supplier.Name}' updated.",
+            entityId: supplier.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            Type = NotificationType.General,
+            Title = "Supplier Updated",
+            Message = $"{supplier.Name} was updated successfully.",
+            ActionUrl = "/suppliers"
+        }, cancellationToken);
+
         return ApiResponse<SupplierResponse>.Ok(MapToResponse(supplier), "Supplier updated successfully");
     }
 
@@ -152,6 +173,23 @@ public sealed class SupplierService(IUnitOfWork unitOfWork) : ISupplierService
 
         unitOfWork.Update(supplier);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.SupplierDeleted,
+            nameof(Supplier),
+            $"Supplier '{supplier.Name}' deleted.",
+            entityId: supplier.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            Type = NotificationType.General,
+            Title = "Supplier Deleted",
+            Message = $"{supplier.Name} was deleted.",
+            ActionUrl = "/suppliers"
+        }, cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Supplier deleted successfully");
     }

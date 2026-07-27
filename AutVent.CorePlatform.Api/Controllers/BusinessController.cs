@@ -29,4 +29,15 @@ public class BusinessController(IBusinessService businessService) : ApiControlle
         var response = await businessService.GetByUserIdAsync(CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPut("{id:long}")]
+    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Update(long id, [FromBody] UpdateBusinessRequest request, CancellationToken cancellationToken)
+    {
+        var response = await businessService.UpdateAsync(id, request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
 }
