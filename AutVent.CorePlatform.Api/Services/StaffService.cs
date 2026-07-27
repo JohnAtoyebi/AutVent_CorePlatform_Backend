@@ -7,7 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IStaffService
+public sealed class StaffService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IStaffService
 {
     private const string SystemActor = "system";
 
@@ -315,6 +319,25 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.UserProfileUpdated,
+            nameof(Staff),
+            $"Staff member '{staff.FullName}' updated.",
+            businessId: staff.BusinessId,
+            entityId: staff.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = staff.BusinessId,
+            Type = NotificationType.General,
+            Title = "Staff Updated",
+            Message = $"{staff.FullName} was updated successfully.",
+            ActionUrl = "/staff"
+        }, cancellationToken);
+
         var updated = await LoadStaffWithIncludes(staff.Id, cancellationToken);
         return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!), "Staff member updated successfully");
     }
@@ -400,17 +423,24 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
         unitOfWork.Update(staff);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        if (!isActive)
+        await auditLogService.LogAsync(
+            userId,
+            isActive ? AuditAction.UserProfileUpdated : AuditAction.StaffDeactivated,
+            nameof(Staff),
+            $"Staff member '{staff.FullName}' was {(isActive ? "activated" : "deactivated")}.",
+            businessId: staff.BusinessId,
+            entityId: staff.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
         {
-            await auditLogService.LogAsync(
-                userId,
-                AuditAction.StaffDeactivated,
-                nameof(Staff),
-                $"Staff member '{staff.FullName}' was deactivated.",
-                businessId: staff.BusinessId,
-                entityId: staff.Id,
-                cancellationToken: cancellationToken);
-        }
+            UserId = userId,
+            BusinessId = staff.BusinessId,
+            Type = NotificationType.General,
+            Title = "Staff Status Updated",
+            Message = $"{staff.FullName} is now {(isActive ? "active" : "inactive")}.",
+            ActionUrl = "/staff"
+        }, cancellationToken);
 
         var updated = await LoadStaffWithIncludes(staff.Id, cancellationToken);
         return ApiResponse<StaffResponse>.Ok(MapToResponse(updated!),
@@ -449,6 +479,16 @@ public sealed class StaffService(IUnitOfWork unitOfWork, IAuditLogService auditL
             businessId: staff.BusinessId,
             entityId: staff.Id,
             cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = staff.BusinessId,
+            Type = NotificationType.General,
+            Title = "Staff Deleted",
+            Message = $"{staff.FullName} was deleted.",
+            ActionUrl = "/staff"
+        }, cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Staff member deleted successfully");
     }
