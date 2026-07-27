@@ -7,7 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IStoreService
+public sealed class StoreService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IStoreService
 {
     private const string SystemActor = "system";
 
@@ -287,6 +291,17 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
             entityId: store.Id,
             cancellationToken: cancellationToken);
 
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = store.BusinessId,
+            StoreId = store.Id,
+            Type = NotificationType.General,
+            Title = "Store Updated",
+            Message = $"Store {store.Name} was updated successfully.",
+            ActionUrl = $"/stores/{store.Id}"
+        }, cancellationToken);
+
         var bankAccounts = await GetBankAccountsAsync(store.BusinessId, cancellationToken);
         return ApiResponse<CreateStoreResponse>.Ok(MapToResponse(store, store.StoreCategory.Name, store.Business.LogoUrl, bankAccounts), "Store updated successfully");
     }
@@ -314,6 +329,27 @@ public sealed class StoreService(IUnitOfWork unitOfWork, IAuditLogService auditL
         store.DateUpdated = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreDeactivated,
+            nameof(Store),
+            $"Store '{store.Name}' was deactivated.",
+            businessId: store.BusinessId,
+            entityId: store.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = store.BusinessId,
+            StoreId = store.Id,
+            Type = NotificationType.General,
+            Title = "Store Deactivated",
+            Message = $"Store {store.Name} was deactivated.",
+            ActionUrl = $"/stores/{store.Id}"
+        }, cancellationToken);
+
         return ApiResponse<bool>.Ok(true, "Store deactivated successfully");
     }
 }

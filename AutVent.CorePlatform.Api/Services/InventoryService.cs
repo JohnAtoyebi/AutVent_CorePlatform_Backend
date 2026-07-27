@@ -7,7 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService auditLogService, IAccessContext accessContext) : IInventoryService
+public sealed class InventoryService(
+    IUnitOfWork unitOfWork,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IInventoryService
 {
     private const string SystemActor = "system";
     private const long DefaultLowStockThreshold = 5;
@@ -374,6 +378,17 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
             oldValues,
             newValues,
             cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = product.StoreId,
+            Type = NotificationType.General,
+            Title = "Inventory Updated",
+            Message = $"{product.Name}: {adjustmentType} of {request.Quantity} unit(s). Stock changed from {oldQuantity} to {product.Quantity}.",
+            ActionUrl = $"/inventory/store/{product.StoreId}/items"
+        }, cancellationToken);
 
         var response = new InventoryItemResponse
         {

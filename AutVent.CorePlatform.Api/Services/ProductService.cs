@@ -9,7 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutVent.CorePlatform.Api.Services;
 
-public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageService, IAuditLogService auditLogService, IAccessContext accessContext) : IProductService
+public sealed class ProductService(
+    IUnitOfWork unitOfWork,
+    IImageService imageService,
+    IAuditLogService auditLogService,
+    INotificationService notificationService,
+    IAccessContext accessContext) : IProductService
 {
     private const string SystemActor = "system";
 
@@ -1122,6 +1127,26 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreUpdated,
+            nameof(Product),
+            $"Product '{normalizedName}' updated in {targetProducts.Count} store location(s).",
+            product.Store.BusinessId,
+            id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = request.StoreId ?? storeId,
+            Type = NotificationType.General,
+            Title = "Product Updated",
+            Message = $"{normalizedName} was updated successfully.",
+            ActionUrl = "/products"
+        }, cancellationToken);
+
         var response = targetProducts
             .Select(x => MapToResponse(x, x.ProductCategory.Name))
             .ToArray();
@@ -1172,8 +1197,20 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
             AuditAction.ProductDeleted,
             nameof(Product),
             $"Product '{product.Name}' deleted.",
-            entityId: product.Id,
+            product.Store.BusinessId,
+            product.Id,
             cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = product.StoreId,
+            Type = NotificationType.General,
+            Title = "Product Deleted",
+            Message = $"{product.Name} was deleted.",
+            ActionUrl = "/products"
+        }, cancellationToken);
 
         return ApiResponse<bool>.Ok(true, "Product deleted successfully");
     }
@@ -1214,6 +1251,26 @@ public sealed class ProductService(IUnitOfWork unitOfWork, IImageService imageSe
 
         unitOfWork.Update(product);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await auditLogService.LogAsync(
+            userId,
+            AuditAction.StoreUpdated,
+            nameof(Product),
+            $"Product '{product.Name}' status changed to {(isActive ? "active" : "inactive")}.",
+            product.Store.BusinessId,
+            product.Id,
+            cancellationToken: cancellationToken);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = userId,
+            BusinessId = product.Store.BusinessId,
+            StoreId = product.StoreId,
+            Type = NotificationType.General,
+            Title = "Product Status Updated",
+            Message = $"{product.Name} is now {(isActive ? "active" : "inactive")}.",
+            ActionUrl = "/products"
+        }, cancellationToken);
 
         var successMessage = isActive ? "Product activated successfully" : "Product deactivated successfully";
         return ApiResponse<bool>.Ok(true, successMessage);
