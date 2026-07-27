@@ -334,7 +334,7 @@ public sealed class InventoryService(IUnitOfWork unitOfWork, IAuditLogService au
                     ? (existingQty * existingCost + request.Quantity * newCost) / (existingQty + request.Quantity)
                     : newCost;
 
-                product.CostPrice = Math.Round(weightedAverage, 2).ToString("F2");
+                product.Price = Math.Round(weightedAverage, 2).ToString("F2");
             }
 
             product.Quantity += request.Quantity;
