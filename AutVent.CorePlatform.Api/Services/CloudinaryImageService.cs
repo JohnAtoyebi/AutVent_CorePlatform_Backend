@@ -24,13 +24,15 @@ public sealed class CloudinaryImageService : IImageService
 
     private readonly Cloudinary _cloudinary;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly string _envPrefix;
 
-    public CloudinaryImageService(IOptions<CloudinaryOptions> options, IUnitOfWork unitOfWork)
+    public CloudinaryImageService(IOptions<CloudinaryOptions> options, IUnitOfWork unitOfWork, IWebHostEnvironment env)
     {
         var opt = options.Value;
         var account = new Account(opt.CloudName, opt.ApiKey, opt.ApiSecret);
         _cloudinary = new Cloudinary(account) { Api = { Secure = true } };
         _unitOfWork = unitOfWork;
+        _envPrefix = env.IsProduction() ? "prod" : "dev";
     }
 
     public async Task<ImageUploadResult> UploadAsync(IFormFile file, long userId, ImageType imageType, CancellationToken cancellationToken = default)
@@ -44,7 +46,7 @@ public sealed class CloudinaryImageService : IImageService
             ?? throw new InvalidOperationException("No business found for the current user.");
 
         var businessSlug = Slugify(business.BusinessName);
-        var folder = $"{businessSlug}/{imageType}";
+        var folder = $"{_envPrefix}/{businessSlug}/{imageType}";
 
         await using var stream = file.OpenReadStream();
 
