@@ -305,6 +305,82 @@ public sealed class PosService(IUnitOfWork unitOfWork, INotificationService noti
             "Sale created successfully");
     }
 
+    public async Task<ApiResponse<SaleResponse>> RecordPaymentAsync(long saleId, RecordSalePaymentRequest request, long userId, CancellationToken cancellationToken = default)
+    {
+        var sale = await unitOfWork.Query<Sale>()
+            .Include(x => x.Store)
+            .ThenInclude(x => x.Business)
+            .Include(x => x.Customer)
+            .Include(x => x.SaleItems)
+            .ThenInclude(x => x.Product)
+            .FirstOrDefaultAsync(x => x.Id == saleId, cancellationToken);
+
+        if (sale is null)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Sale not found",
+                [new ApiError("SaleNotFound", "No sale found for this id", nameof(saleId))]);
+        }
+
+        if (!accessContext.IsPlatformAdmin && sale.Store.Business.UserId != userId)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "You do not have access to this sale",
+                [new ApiError("UnauthorizedSale", "This sale does not belong to your business", nameof(saleId))]);
+        }
+
+        if (sale.PaymentMethod != SalePaymentMethod.PartPayment || sale.BalanceRemaining <= 0 || sale.Status != SaleStatus.Pending)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                "This sale does not have an outstanding balance",
+                [new ApiError("NoOutstandingBalance", "Only pending part-payment sales with a remaining balance can receive additional payments", nameof(saleId))]);
+        }
+
+        if (request.AmountPaid > sale.BalanceRemaining)
+        {
+            return ApiResponse<SaleResponse>.Failed(
+                StatusCodes.Status400BadRequest,
+                $"Amount paid exceeds the remaining balance of ₦{sale.BalanceRemaining:N2}",
+                [new ApiError("PaymentExceedsBalance", $"Amount paid cannot exceed the remaining balance of {sale.BalanceRemaining:N2}", nameof(request.AmountPaid))]);
+        }
+
+        sale.AmountPaid += request.AmountPaid;
+        sale.BalanceRemaining -= request.AmountPaid;
+        sale.UpdatedBy = SystemActor;
+        sale.DateUpdated = DateTime.UtcNow;
+
+        var isFullyPaid = sale.BalanceRemaining == 0;
+        if (isFullyPaid)
+        {
+            sale.Status = SaleStatus.Completed;
+            sale.BalanceDueDate = null;
+            sale.PaymentMethod = request.PaymentMethod;
+        }
+
+        unitOfWork.Update(sale);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var notifTitle = isFullyPaid ? "Sale fully paid" : "Part payment received";
+        var notifMessage = isFullyPaid
+            ? $"Sale {sale.SaleNumber} has been fully settled. Total paid: ₦{sale.AmountPaid:N2}."
+            : $"Payment of ₦{request.AmountPaid:N2} recorded for sale {sale.SaleNumber}. Remaining balance: ₦{sale.BalanceRemaining:N2}.";
+
+        await notificationService.CreateAsync(new CreateNotificationRequest
+        {
+            UserId = sale.Store.Business.UserId,
+            BusinessId = sale.Store.Business.Id,
+            Type = isFullyPaid ? NotificationType.SaleCompleted : NotificationType.SalePartPayment,
+            Title = notifTitle,
+            Message = notifMessage,
+            ActionUrl = $"/sales/{sale.Id}"
+        }, cancellationToken);
+
+        return ApiResponse<SaleResponse>.Ok(MapToResponse(sale, sale.Customer), isFullyPaid ? "Sale fully settled" : "Payment recorded successfully");
+    }
+
     public async Task<ApiResponse<SaleResponse>> GetSaleByIdAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var sale = await unitOfWork.Query<Sale>()

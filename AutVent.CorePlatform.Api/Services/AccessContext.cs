@@ -4,5 +4,5 @@ namespace AutVent.CorePlatform.Api.Services;
 
 public sealed class AccessContext(IHttpContextAccessor httpContextAccessor) : IAccessContext
 {
-    public bool IsPlatformAdmin => httpContextAccessor.HttpContext?.User?.IsInRole("PlatformAdmin") == true;
+    public bool IsPlatformAdmin => httpContextAccessor.HttpContext?.User?.IsInRole("BackOfficeAdmin") == true;
 }

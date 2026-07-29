@@ -10,27 +10,48 @@ namespace AutVent.CorePlatform.Api.Services;
 public sealed class SupplierService(
     IUnitOfWork unitOfWork,
     IAuditLogService auditLogService,
-    INotificationService notificationService) : ISupplierService
+    INotificationService notificationService,
+    IAccessContext accessContext) : ISupplierService
 {
     private const string SystemActor = "system";
 
     public async Task<ApiResponse<SupplierResponse>> CreateAsync(CreateSupplierRequest request, long userId, CancellationToken cancellationToken = default)
     {
+        var business = await unitOfWork.Query<Business>()
+            .FirstOrDefaultAsync(x => x.Id == request.BusinessId, cancellationToken);
+
+        if (business is null)
+        {
+            return ApiResponse<SupplierResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Business not found",
+                [new ApiError("BusinessNotFound", "No business found for this id", nameof(request.BusinessId))]);
+        }
+
+        if (!accessContext.IsPlatformAdmin && business.UserId != userId)
+        {
+            return ApiResponse<SupplierResponse>.Failed(
+                StatusCodes.Status403Forbidden,
+                "Business does not belong to the current user",
+                [new ApiError("UnauthorizedBusiness", "The business does not belong to the current user", nameof(request.BusinessId))]);
+        }
+
         var normalizedName = request.Name.Trim();
 
         var nameExists = await unitOfWork.Query<Supplier>()
-            .AnyAsync(x => x.Name.ToLower() == normalizedName.ToLower() && !x.IsDeleted, cancellationToken);
+            .AnyAsync(x => x.BusinessId == request.BusinessId && x.Name.ToLower() == normalizedName.ToLower() && !x.IsDeleted, cancellationToken);
 
         if (nameExists)
         {
             return ApiResponse<SupplierResponse>.Failed(
                 StatusCodes.Status409Conflict,
-                "A supplier with this name already exists",
-                [new ApiError("DuplicateSupplier", "Supplier name already exists", nameof(request.Name))]);
+                "A supplier with this name already exists for this business",
+                [new ApiError("DuplicateSupplier", "Supplier name already exists for this business", nameof(request.Name))]);
         }
 
         var supplier = new Supplier
         {
+            BusinessId = request.BusinessId,
             Name = normalizedName,
             ContactEmail = request.ContactEmail?.Trim().ToLowerInvariant(),
             ContactPhone = request.ContactPhone?.Trim(),
@@ -48,9 +69,18 @@ public sealed class SupplierService(
     public async Task<ApiResponse<SupplierResponse>> GetByIdAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var supplier = await unitOfWork.Query<Supplier>()
+            .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (supplier is null)
+        {
+            return ApiResponse<SupplierResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Supplier not found",
+                [new ApiError("SupplierNotFound", "No supplier found for this id", nameof(id))]);
+        }
+
+        if (!accessContext.IsPlatformAdmin && (supplier.Business is null || supplier.Business.UserId != userId))
         {
             return ApiResponse<SupplierResponse>.Failed(
                 StatusCodes.Status404NotFound,
@@ -64,7 +94,13 @@ public sealed class SupplierService(
     public async Task<ApiResponse<PagedResponse<SupplierResponse>>> GetAllAsync(PagedQueryRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var query = unitOfWork.Query<Supplier>()
+            .Include(x => x.Business)
             .Where(x => !x.IsDeleted);
+
+        if (!accessContext.IsPlatformAdmin)
+        {
+            query = query.Where(x => x.Business != null && x.Business.UserId == userId);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
@@ -98,6 +134,7 @@ public sealed class SupplierService(
     public async Task<ApiResponse<SupplierResponse>> UpdateAsync(long id, UpdateSupplierRequest request, long userId, CancellationToken cancellationToken = default)
     {
         var supplier = await unitOfWork.Query<Supplier>()
+            .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (supplier is null)
@@ -108,10 +145,18 @@ public sealed class SupplierService(
                 [new ApiError("SupplierNotFound", "No supplier found for this id", nameof(id))]);
         }
 
+        if (!accessContext.IsPlatformAdmin && (supplier.Business is null || supplier.Business.UserId != userId))
+        {
+            return ApiResponse<SupplierResponse>.Failed(
+                StatusCodes.Status404NotFound,
+                "Supplier not found",
+                [new ApiError("SupplierNotFound", "No supplier found for this id", nameof(id))]);
+        }
+
         var normalizedName = request.Name.Trim();
 
         var nameExists = await unitOfWork.Query<Supplier>()
-            .AnyAsync(x => x.Id != id && x.Name.ToLower() == normalizedName.ToLower() && !x.IsDeleted, cancellationToken);
+            .AnyAsync(x => x.Id != id && x.BusinessId == supplier.BusinessId && x.Name.ToLower() == normalizedName.ToLower() && !x.IsDeleted, cancellationToken);
 
         if (nameExists)
         {
@@ -153,9 +198,18 @@ public sealed class SupplierService(
     public async Task<ApiResponse<bool>> DeleteAsync(long id, long userId, CancellationToken cancellationToken = default)
     {
         var supplier = await unitOfWork.Query<Supplier>()
+            .Include(x => x.Business)
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken);
 
         if (supplier is null)
+        {
+            return ApiResponse<bool>.Failed(
+                StatusCodes.Status404NotFound,
+                "Supplier not found",
+                [new ApiError("SupplierNotFound", "No supplier found for this id", nameof(id))]);
+        }
+
+        if (!accessContext.IsPlatformAdmin && (supplier.Business is null || supplier.Business.UserId != userId))
         {
             return ApiResponse<bool>.Failed(
                 StatusCodes.Status404NotFound,
@@ -197,6 +251,7 @@ public sealed class SupplierService(
     private static SupplierResponse MapToResponse(Supplier supplier) => new()
     {
         Id = supplier.Id,
+        BusinessId = supplier.BusinessId,
         Name = supplier.Name,
         ContactEmail = supplier.ContactEmail,
         ContactPhone = supplier.ContactPhone,

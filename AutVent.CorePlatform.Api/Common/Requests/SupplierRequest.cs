@@ -5,6 +5,9 @@ namespace AutVent.CorePlatform.Api.Common.Requests;
 public sealed class CreateSupplierRequest
 {
     [Required]
+    public long BusinessId { get; init; }
+
+    [Required]
     [MaxLength(200)]
     public string Name { get; init; } = string.Empty;
 
