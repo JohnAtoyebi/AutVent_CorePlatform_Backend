@@ -48,3 +48,14 @@ public sealed class CreateSaleRequest
     [Required]
     public List<CreateSaleItemRequest> Items { get; init; } = [];
 }
+
+public sealed class RecordSalePaymentRequest
+{
+    [Required]
+    [Range(0.01, double.MaxValue)]
+    public decimal AmountPaid { get; init; }
+
+    [Required]
+    [EnumDataType(typeof(SalePaymentMethod))]
+    public SalePaymentMethod PaymentMethod { get; init; }
+}
