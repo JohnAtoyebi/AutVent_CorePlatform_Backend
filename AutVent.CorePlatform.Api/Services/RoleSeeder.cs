@@ -15,7 +15,7 @@ public sealed class RoleSeeder(IUnitOfWork unitOfWork)
             ("Admin", "Manages store operations, staff, and configurations", true),
             ("Staff", "Handles day-to-day store activities such as sales and inventory", true),
             ("Viewer", "Read-only access to store data and reports", true),
-            ("PlatformAdmin", "Platform-level administrator with cross-business visibility", false)
+            ("BackOfficeAdmin", "Platform-level administrator with cross-business visibility", false)
         };
 
         foreach (var (name, description, isDefault) in defaultRoles)

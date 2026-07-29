@@ -52,7 +52,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("PlatformAdminOnly", policy =>
-        policy.RequireRole("PlatformAdmin"));
+        policy.RequireRole("BackOfficeAdmin"));
 });
 builder.Services.AddRateLimiter(options =>
 {
