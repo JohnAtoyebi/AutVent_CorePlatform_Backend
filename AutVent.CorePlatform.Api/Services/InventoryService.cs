@@ -334,11 +334,18 @@ public sealed class InventoryService(
                 var existingQty = product.Quantity;
                 var hasExistingPrice = decimal.TryParse(product.Price, out var existingPricePerUnit);
 
-                var weightedAveragePrice = existingQty > 0 && hasExistingPrice
-                    ? ((existingQty * existingPricePerUnit) + (request.Quantity * incomingPrice)) / (existingQty + request.Quantity)
-                    : incomingPrice;
+                decimal newPrice;
 
-                product.Price = Math.Round(weightedAveragePrice, 2).ToString("F2");
+                if (request.PricingStrategy == StockPricingStrategy.Replace || !hasExistingPrice || existingQty <= 0)
+                {
+                    newPrice = incomingPrice;
+                }
+                else
+                {
+                    newPrice = ((existingQty * existingPricePerUnit) + (request.Quantity * incomingPrice)) / (existingQty + request.Quantity);
+                }
+
+                product.Price = Math.Round(newPrice, 2).ToString("F2");
             }
 
             product.Quantity += request.Quantity;
