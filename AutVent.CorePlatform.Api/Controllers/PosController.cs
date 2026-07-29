@@ -21,6 +21,17 @@ public class PosController(IPosService posService) : ApiControllerBase
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpPatch("sale/{saleId:long}/payment")]
+    [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RecordPayment(long saleId, [FromBody] RecordSalePaymentRequest request, CancellationToken cancellationToken)
+    {
+        var response = await posService.RecordPaymentAsync(saleId, request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet("sale/{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<SaleResponse>), StatusCodes.Status404NotFound)]
