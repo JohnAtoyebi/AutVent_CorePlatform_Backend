@@ -343,6 +343,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 City = x.City,
                 State = x.State,
                 Country = x.Country,
+                IsActive = x.IsActive,
                 Owner = new UserProfileResponse
                 {
                     Id = x.User.Id,
