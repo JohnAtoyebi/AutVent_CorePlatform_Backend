@@ -145,6 +145,9 @@ using (var scope = app.Services.CreateScope())
     var permissionSeeder = scope.ServiceProvider.GetRequiredService<PermissionSeeder>();
     await permissionSeeder.SeedAsync();
 
+    var adminUserSeeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
+    await adminUserSeeder.SeedAsync();
+
     var subscriptionPlanSeeder = scope.ServiceProvider.GetRequiredService<SubscriptionPlanSeeder>();
     await subscriptionPlanSeeder.SeedAsync();
 }
