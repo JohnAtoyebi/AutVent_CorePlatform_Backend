@@ -342,7 +342,18 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 Address = x.Address,
                 City = x.City,
                 State = x.State,
-                Country = x.Country
+                Country = x.Country,
+                Owner = new UserProfileResponse
+                {
+                    Id = x.User.Id,
+                    FullName = x.User.FullName,
+                    EmailAddress = x.User.EmailAddress,
+                    PhoneNumber = x.User.PhoneNumber,
+                    ReferralCode = x.User.ReferralCode,
+                    IsActive = x.User.IsActive,
+                    ProfilePhotoUrl = x.User.ProfilePhotoUrl,
+                    MemberSince = x.User.DateCreated
+                }
             })
             .ToListAsync(cancellationToken);
 
