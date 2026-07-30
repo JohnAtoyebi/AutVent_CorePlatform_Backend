@@ -386,6 +386,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
             City = business.City,
             State = business.State,
             Country = business.Country,
+            IsActive = business.IsActive,
             Owner = business.User is null ? null : new UserProfileResponse
             {
                 Id = business.User.Id,
