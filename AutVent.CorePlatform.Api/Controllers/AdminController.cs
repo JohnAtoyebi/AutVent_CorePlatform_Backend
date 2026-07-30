@@ -107,6 +107,36 @@ public sealed class AdminController(
         return StatusCode(response.StatusCode, response);
     }
 
+    [Authorize(Policy = "PlatformAdminOnly")]
+    [HttpGet("dashboard/business-summary")]
+    [ProducesResponseType(typeof(ApiResponse<BusinessSummaryDashboardResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BusinessSummaryDashboardResponse>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetBusinessSummaryDashboard(CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.GetBusinessSummaryDashboardAsync(cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [Authorize(Policy = "PlatformAdminOnly")]
+    [HttpGet("dashboard/users-statistics")]
+    [ProducesResponseType(typeof(ApiResponse<UserStatisticsDashboardResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UserStatisticsDashboardResponse>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetUserStatisticsDashboard([FromQuery] DashboardAnalyticsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.GetUserStatisticsDashboardAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [Authorize(Policy = "PlatformAdminOnly")]
+    [HttpGet("dashboard/mrr-analytics")]
+    [ProducesResponseType(typeof(ApiResponse<MrrAnalyticsDashboardResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<MrrAnalyticsDashboardResponse>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetMrrAnalyticsDashboard([FromQuery] DashboardAnalyticsRequest request, CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.GetMrrAnalyticsDashboardAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [Authorize]
     [HttpGet("business/{id:long}")]
     [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status200OK)]
