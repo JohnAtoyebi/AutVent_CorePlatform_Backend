@@ -63,6 +63,27 @@ public sealed class StoreService(
                 [new ApiError("InvalidStoreCategory", "Store category doesn't exists", nameof(request.StoreCategoryId))]);
         }
 
+        // Validate store limit based on subscription
+        var activeSubscription = await unitOfWork.Query<BusinessSubscription>()
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.BusinessId == business.Id && x.IsActive && !x.IsDeleted)
+            .OrderByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeSubscription?.SubscriptionPlan?.MaxStores.HasValue == true)
+        {
+            var currentStoreCount = await unitOfWork.Query<Store>()
+                .CountAsync(x => x.BusinessId == business.Id && x.IsActive && !x.IsDeleted, cancellationToken);
+
+            if (currentStoreCount >= activeSubscription.SubscriptionPlan.MaxStores)
+            {
+                return ApiResponse<CreateStoreResponse>.Failed(
+                    StatusCodes.Status409Conflict,
+                    $"Store limit of {activeSubscription.SubscriptionPlan.MaxStores} has been reached for this subscription",
+                    [new ApiError("StoreLimitExceeded", $"Cannot create more than {activeSubscription.SubscriptionPlan.MaxStores} stores with the current subscription plan", nameof(request.BusinessId))]);
+            }
+        }
+
         var store = new Store
         {
             Name = storeName,
