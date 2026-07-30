@@ -147,6 +147,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         var business = await unitOfWork.Query<Business>()
             .Include(x => x.BusinessIndustry)
             .Include(x => x.StaffRange)
+            .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (business is null)
@@ -157,7 +158,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 [new ApiError("BusinessNotFound", "No business found for this id", nameof(id))]);
         }
 
-        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name));
+        return ApiResponse<CreateBusinessResponse>.Ok(await MapDetailsToResponseAsync(business, cancellationToken));
     }
 
     public async Task<ApiResponse<CreateBusinessResponse>> GetByUserIdAsync(long userId, CancellationToken cancellationToken = default)
@@ -165,6 +166,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         var business = await unitOfWork.Query<Business>()
             .Include(x => x.BusinessIndustry)
             .Include(x => x.StaffRange)
+            .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken);
 
         if (business is null)
@@ -175,7 +177,7 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
                 [new ApiError("BusinessNotFound", "No business found for this user", nameof(userId))]);
         }
 
-        return ApiResponse<CreateBusinessResponse>.Ok(MapToResponse(business, business.BusinessIndustry.Name, business.StaffRange.Name));
+        return ApiResponse<CreateBusinessResponse>.Ok(await MapDetailsToResponseAsync(business, cancellationToken));
     }
 
     public async Task<ApiResponse<CreateBusinessResponse>> UpdateAsync(long id, UpdateBusinessRequest request, long userId, CancellationToken cancellationToken = default)
@@ -354,6 +356,36 @@ public sealed class BusinessService(IUnitOfWork unitOfWork, IEmailProvider email
         };
 
         return ApiResponse<PagedResponse<CreateBusinessResponse>>.Ok(paged);
+    }
+
+    private async Task<CreateBusinessResponse> MapDetailsToResponseAsync(Business business, CancellationToken cancellationToken)
+    {
+        return new CreateBusinessResponse
+        {
+            BusinessId = business.Id,
+            Name = business.BusinessName,
+            Industry = business.BusinessIndustry.Name,
+            StaffRange = business.StaffRange.Name,
+            LogoUrl = business.LogoUrl,
+            Email = business.Email,
+            PhoneNumber = business.PhoneNumber,
+            Website = business.Website,
+            Address = business.Address,
+            City = business.City,
+            State = business.State,
+            Country = business.Country,
+            Owner = business.User is null ? null : new UserProfileResponse
+            {
+                Id = business.User.Id,
+                FullName = business.User.FullName,
+                EmailAddress = business.User.EmailAddress,
+                PhoneNumber = business.User.PhoneNumber,
+                ReferralCode = business.User.ReferralCode,
+                IsActive = business.User.IsActive,
+                ProfilePhotoUrl = business.User.ProfilePhotoUrl,
+                MemberSince = business.User.DateCreated
+            }
+        };
     }
 
     private static CreateBusinessResponse MapToResponse(Business business, string industry, string staffRange) => new()

@@ -8,6 +8,8 @@
 - Use `Id` for ordering (`OrderBy`/`OrderByDescending`) instead of name/date fields in this codebase.
 - Prefer SKU/text identifiers to be uppercase alphanumeric (capital letters and numbers).
 - Ignore appsettings files unless the user explicitly asks to modify them.
+- Do not change the AuditAction enum for business status updates; use existing audit actions instead of adding new enum values.
+- Do not rearrange existing enum values; if new enum entries are needed, add them without changing existing numeric values.
 
 ## Subscription Management
 - Create an active business subscription when required, rather than just fetching subscriptions by business ID.

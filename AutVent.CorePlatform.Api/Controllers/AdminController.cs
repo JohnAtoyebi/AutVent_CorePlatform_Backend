@@ -14,6 +14,8 @@ namespace AutVent.CorePlatform.Api.Controllers;
 public sealed class AdminController(
     IAuthenticationService authenticationService,
     IBusinessService businessService,
+    IAdminBusinessService adminBusinessService,
+    IAdminUserService adminUserService,
     IBillingService billingService,
     IUserService userService,
     IStoreService storeService,
@@ -87,23 +89,21 @@ public sealed class AdminController(
     }
 
     [Authorize]
-    [HttpPost("business")]
-    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ApiResponse<CreateBusinessResponse>), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CreateBusiness([FromBody] CreateBusinessRequest request, CancellationToken cancellationToken)
-    {
-        var response = await businessService.CreateAsync(request, CurrentUserId, cancellationToken);
-        return StatusCode(response.StatusCode, response);
-    }
-
-    [Authorize]
     [HttpGet("business")]
     [ProducesResponseType(typeof(ApiResponse<PagedResponse<CreateBusinessResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetBusinesses([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
     {
         var response = await businessService.GetAllAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [Authorize(Policy = "PlatformAdminOnly")]
+    [HttpGet("business/overview")]
+    [ProducesResponseType(typeof(ApiResponse<BusinessOverviewResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BusinessOverviewResponse>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetBusinessOverview(CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.GetOverviewAsync(cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
@@ -126,6 +126,48 @@ public sealed class AdminController(
     public async Task<IActionResult> UpdateBusiness(long id, [FromBody] UpdateBusinessRequest request, CancellationToken cancellationToken)
     {
         var response = await businessService.UpdateAsync(id, request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPatch("business/{id:long}/activate")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ActivateBusiness(long id, CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.ActivateAsync(id, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPatch("business/{id:long}/deactivate")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeactivateBusiness(long id, CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.DeactivateAsync(id, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("business/{businessId:long}/stores")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<BusinessStoreResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<BusinessStoreResponse>>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<BusinessStoreResponse>>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBusinessStores(long businessId, [FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.GetStoresAsync(businessId, request, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("business/{businessId:long}/products")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<BusinessProductResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<BusinessProductResponse>>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<BusinessProductResponse>>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBusinessProducts(long businessId, [FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
+    {
+        var response = await adminBusinessService.GetProductsAsync(businessId, request, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 
@@ -172,6 +214,17 @@ public sealed class AdminController(
     }
 
     [Authorize]
+    [HttpGet("billing/businesses/{businessId:long}/subscription")]
+    [ProducesResponseType(typeof(ApiResponse<BusinessSubscriptionResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<BusinessSubscriptionResponse>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<BusinessSubscriptionResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBusinessSubscription(long businessId, CancellationToken cancellationToken)
+    {
+        var response = await billingService.GetActiveSubscriptionByBusinessIdAsync(businessId, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [Authorize]
     [HttpGet("billing/businesses/{businessId:long}/subscriptions/active")]
     [ProducesResponseType(typeof(ApiResponse<BusinessSubscriptionResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<BusinessSubscriptionResponse>), StatusCodes.Status403Forbidden)]
@@ -179,6 +232,46 @@ public sealed class AdminController(
     public async Task<IActionResult> GetActiveBusinessSubscription(long businessId, CancellationToken cancellationToken)
     {
         var response = await billingService.GetActiveSubscriptionByBusinessIdAsync(businessId, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("users/overview")]
+    [ProducesResponseType(typeof(ApiResponse<UserOverviewResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<UserOverviewResponse>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetUserOverview(CancellationToken cancellationToken)
+    {
+        var response = await adminUserService.GetOverviewAsync(cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpGet("users")]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<UserProfileResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResponse<UserProfileResponse>>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetUsers([FromQuery] PagedQueryRequest request, CancellationToken cancellationToken)
+    {
+        var response = await adminUserService.GetAllAsync(request, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPatch("users/{id:long}/activate")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ActivateUser(long id, CancellationToken cancellationToken)
+    {
+        var response = await adminUserService.ActivateAsync(id, CurrentUserId, cancellationToken);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpPatch("users/{id:long}/deactivate")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeactivateUser(long id, CancellationToken cancellationToken)
+    {
+        var response = await adminUserService.DeactivateAsync(id, CurrentUserId, cancellationToken);
         return StatusCode(response.StatusCode, response);
     }
 

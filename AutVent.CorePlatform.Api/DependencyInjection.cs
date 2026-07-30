@@ -25,7 +25,9 @@ public static class DependencyInjection
         services.AddScoped<IReferralService, ReferralService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IBusinessService, BusinessService>();
+        services.AddScoped<IAdminBusinessService, AdminBusinessService>();
         services.AddScoped<IStoreService, StoreService>();
         services.AddScoped<IBankAccountService, BankAccountService>();
         services.AddScoped<IProductService, ProductService>();
@@ -53,6 +55,7 @@ public static class DependencyInjection
         services.AddScoped<ProductCategorySeeder>();
         services.AddScoped<RoleSeeder>();
         services.AddScoped<PermissionSeeder>();
+        services.AddScoped<AdminUserSeeder>();
         services.AddScoped<SubscriptionPlanSeeder>();
         return services;
     }
