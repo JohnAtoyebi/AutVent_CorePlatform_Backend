@@ -14,5 +14,6 @@ public sealed class CreateBusinessResponse
     public string? City { get; init; }
     public string? State { get; init; }
     public string? Country { get; init; }
+    public bool IsActive { get; init; }
     public UserProfileResponse? Owner { get; init; }
 }
