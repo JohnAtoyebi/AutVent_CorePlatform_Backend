@@ -283,6 +283,28 @@ public sealed class CustomerService(
                 [new ApiError("UnauthorizedCustomer", "This customer does not belong to your business", nameof(id))]);
         }
 
+        var hasOutstandingInvoiceBalance = await unitOfWork.Query<Invoice>()
+            .AnyAsync(x =>
+                x.CustomerId == customer.Id &&
+                !x.IsDeleted &&
+                (x.BalanceRemaining > 0 || x.Status == InvoiceStatus.PartiallyPaid),
+                cancellationToken);
+
+        var hasOutstandingSaleBalance = await unitOfWork.Query<Sale>()
+            .AnyAsync(x =>
+                x.CustomerId == customer.Id &&
+                !x.IsDeleted &&
+                x.BalanceRemaining > 0,
+                cancellationToken);
+
+        if (hasOutstandingInvoiceBalance || hasOutstandingSaleBalance)
+        {
+            return ApiResponse<bool>.Failed(
+                StatusCodes.Status409Conflict,
+                "Customer cannot be deleted while owing money",
+                [new ApiError("CustomerHasOutstandingBalance", "This customer has an unpaid or partially paid invoice or sale and cannot be deleted", nameof(id))]);
+        }
+
         unitOfWork.Delete(customer);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
